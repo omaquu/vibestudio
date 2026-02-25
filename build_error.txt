@@ -1,0 +1,26 @@
+    Checking vibe-studio v0.1.0 (C:\Users\kuron\.gemini\antigravity\WorkSpace\Vibe-Studio)
+error[E0317]: `if` may be missing an `else` clause
+   --> src\timeline.rs:333:41
+    |
+333 | /  ...   if t <= duration {
+334 | |  ...       let pct = if duration > 0.0 { (t / duration) * 100.0 } else { 0.0 };
+335 | |  ...       let show_label = if tick_interval == 1.0 { i % 5 == 0 } else { true };
+336 | |  ...       let tick_height = if show_label { "6px" } else { "4px" };
+...   |
+346 | |/ ...       rsx! {
+347 | || ...           div {
+348 | || ...               style: "position: absolute; left: calc(80px + ((100% - 80px) * {pct} / 100)); bottom: 0; display: flex; flex-direction:...
+349 | || ...               if show_label {
+...   ||
+354 | || ...       }
+    | ||___________- found here
+355 | |  ...   }
+    | |________^ expected `Result<VNode, RenderError>`, found `()`
+    |
+    = note:   expected enum `Result<VNode, dioxus::prelude::RenderError>`
+            found unit type `()`
+    = note: `if` expressions without `else` evaluate to `()`
+    = help: consider adding an `else` block that evaluates to the expected type
+
+For more information about this error, try `rustc --explain E0317`.
+error: could not compile `vibe-studio` (bin "vibe-studio") due to 1 previous error

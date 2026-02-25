@@ -1,0 +1,10 @@
+/target
+/target_dx
+/target-*
+/.dioxus
+/dist
+/node_modules
+*.exe
+*.dll
+*.so
+*.dylib

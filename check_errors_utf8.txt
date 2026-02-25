@@ -1,0 +1,364 @@
+﻿cargo :     Checking 
+vibe-studio v0.1.0 (C:\Users\k
+uron\.gemini\antigravity\WorkS
+pace\Vibe-Studio)
+At line:1 char:1
++ cargo check --color never > 
+check_errors.txt 2>&1
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : 
+    NotSpecified: (    Check  
+  ing vi...ce\Vibe-Studio):   
+ String) [], RemoteExcepti    
+on
+    + FullyQualifiedErrorId : 
+    NativeCommandError
+ 
+error: Failed to parse 
+formatted segment: Expected 
+Ident or Expression
+  --> src\sidebar.rs:67:24
+   |
+67 | ...e: "display: flex; 
+align-items: center; gap: 
+4px; cursor: pointer; 
+flex-grow: 1; min-width: 0; 
+opacity: {if visible { 1.0 } 
+else { 0.35 }};",
+   |       ^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error: Failed to parse 
+formatted segment: Expected 
+Ident or Expression
+   --> src\sidebar.rs:280:44
+    |
+280 | ...e: "display: flex; 
+align-items: center; gap: 
+5px; padding: 6px 8px; 
+cursor: pointer; user-select: 
+none; background: {if 
+is_selected { 
+\"rgba(251,191,36,0.1)\" } 
+else { \"transparent\" }};",
+    |       ^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^
+
+error: Failed to parse 
+formatted segment: Expected 
+Ident or Expression
+  --> src\timeline.rs:48:20
+   |
+48 | ...e: "position: 
+absolute; left: {left_pct}%; 
+width: {width_...or) } else { 
+\"none\".to_string() }};",
+   |       ^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^...^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^
+
+error: Failed to parse 
+formatted segment: Expected 
+Ident or Expression
+  --> src\inspector.rs:47:24
+   |
+47 | ...e: "width: 28px; 
+height: 14px; border-radius: 
+7px; background: {if checked 
+{ \"var(--accent-color)\" } 
+else { 
+\"rgba(255,255,255,0.1)\" }}; 
+display: flex; align-items: 
+center; padding: 0 2px; 
+transition: background 0.2s;",
+   |       ^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^
+
+error[E0308]: mismatched types
+   --> src\inspector.rs:155:48
+    |
+155 | ...                   
+value: layer.scale,
+    |                       
+-----  ^^^^^^^^^^^ expected 
+`f64`, found `f32`
+    |                       |
+    |                       
+arguments to this method are 
+incorrect
+    |
+note: method defined here
+   --> src\inspector.rs:7:57
+    |
+  7 | fn Slider(label: 
+String, min: f64, max: f64, 
+step: f64, value: f64, 
+on_change: EventHandler<f64>) 
+-> Element {
+    |                         
+                              
+  ^^^^^-----
+help: you can convert an 
+`f32` to an `f64`
+    |
+155 |                         
+                value: 
+layer.scale.into(),
+    |                         
+                              
+    +++++++
+
+error[E0277]: the trait bound 
+`Callback<f64>: SuperFrom<{clo
+sure@src\inspector.rs:156:52: 
+156:60}, _>` is not satisfied
+   --> src\inspector.rs:156:52
+    |
+156 |   ...                   
+on_change: move |v| {
+    |  _______________________
+---------__^
+    | |                       
+|
+    | |                       
+required by a bound 
+introduced by this call
+157 | | ...                   
+    if let Some(l) = state.wri
+te().layers.iter_mut().find(|l
+| l.id == id_scale) {
+158 | | ...                   
+        l.scale = v;
+159 | | ...                   
+    }
+160 | | ...                   
+}
+    | 
+|_______________________^ the 
+trait `SuperFrom<{closure@src\
+inspector.rs:156:52: 156:60}, 
+_>` is not implemented for 
+`Callback<f64>`
+    |
+help: the following other 
+types implement trait 
+`SuperFrom<T, M>`
+   --> C:\Users\kuron\.cargo\r
+egistry\src\index.crates.io-19
+49cf8c6b5b557f\dioxus-core-0.7
+.3\src\events.rs:390:1
+    |
+390 | / impl<
+391 | |         Function: 
+FnMut(Args) -> Spawn + 
+'static,
+392 | |         Args: 'static,
+393 | |         Spawn: 
+SpawnIfAsync<Marker, Ret> + 
+'static,
+394 | |         Ret: 'static,
+395 | |         Marker,
+396 | |     > 
+SuperFrom<Function, 
+MarkerWrapper<Marker>> for 
+Callback<Args, Ret>
+    | |_______________________
+______________________________
+___________________^ 
+`Callback<Args, Ret>` 
+implements 
+`SuperFrom<Function, 
+MarkerWrapper<Marker>>`
+...
+428 | / impl<
+429 | |         Function: 
+FnMut() -> Spawn + 'static,
+430 | |         Spawn: 
+SpawnIfAsync<Marker, Ret> + 
+'static,
+431 | |         Ret: 'static,
+432 | |         Marker,
+433 | |     > 
+SuperFrom<Function, 
+UnitClosure<Marker>> for 
+Callback<(), Ret>
+    | |_______________________
+______________________________
+_______________^ 
+`Callback<(), Ret>` 
+implements 
+`SuperFrom<Function, dioxus::d
+ioxus_core::events::UnitClosur
+e<Marker>>`
+    = note: required for `{clo
+sure@src\inspector.rs:156:52: 
+156:60}` to implement 
+`SuperInto<Callback<f64>, _>`
+note: required by a bound in `
+SliderPropsBuilder::<(__label,
+ __min, __max, __step, 
+__value, ())>::on_change`
+   --> src\inspector.rs:6:1
+    |
+  6 | #[component]
+    | ^^^^^^^^^^^^ required 
+by this bound in `SliderPropsB
+uilder::<(__label, __min, 
+__max, __step, __value, 
+())>::on_change`
+  7 | fn Slider(label: 
+String, min: f64, max: f64, 
+step: f64, value: f64, 
+on_change: EventHandler<f64>) 
+-> Element {
+    |                         
+                              
+              --------- 
+required by a bound in this 
+associated function
+    = note: this error 
+originates in the derive 
+macro `Props` (in Nightly 
+builds, run with -Z 
+macro-backtrace for more info)
+
+error[E0308]: mismatched types
+   --> src\inspector.rs:174:73
+    |
+174 | ...                   
+l.position[0] = v;
+    |                       
+-------------   ^ expected 
+`f32`, found `f64`
+    |                       |
+    |                       
+expected due to the type of 
+this binding
+
+error[E0308]: mismatched types
+   --> src\inspector.rs:188:73
+    |
+188 | ...                   
+l.position[1] = v;
+    |                       
+-------------   ^ expected 
+`f32`, found `f64`
+    |                       |
+    |                       
+expected due to the type of 
+this binding
+
+error[E0308]: mismatched types
+   --> src\inspector.rs:202:73
+    |
+202 | ...                   
+l.position[2] = v;
+    |                       
+-------------   ^ expected 
+`f32`, found `f64`
+    |                       |
+    |                       
+expected due to the type of 
+this binding
+
+error[E0599]: no variant or 
+associated item named `Group` 
+found for enum 
+`model::LayerType` in the 
+current scope
+   --> 
+src\inspector.rs:265:131
+    |
+265 | ...                   
+.filter(|l| (l.layer_type == 
+LayerType::Composition || 
+l.layer_type == 
+LayerType::Group) && l.id != 
+layer.id)
+    |                         
+                              
+                              
+                    ^^^^^ 
+variant or associated item 
+not found in 
+`model::LayerType`
+    |
+   ::: src\model.rs:12:1
+    |
+ 12 | pub enum LayerType {
+    | ------------------ 
+variant or associated item 
+`Group` not found for this 
+enum
+
+error[E0308]: mismatched types
+   --> src\inspector.rs:260:82
+    |
+260 | ...                   st
+ate.write().reparent(&id_repar
+ent, new_parent.as_deref());
+    |                         
+            --------          
+     ^^^^^^^^^^^^^^^^^^^^^ 
+expected `Option<String>`, 
+found `Option<&str>`
+    |                         
+            |
+    |                         
+            arguments to this 
+method are incorrect
+    |
+    = note: expected enum `std
+::option::Option<std::string::
+String>`
+               found enum 
+`std::option::Option<&str>`
+note: method defined here
+   --> src\model.rs:319:12
+    |
+319 |     pub fn 
+reparent(&mut self, layer_id: 
+&str, new_parent: 
+Option<String>) {
+    |            ^^^^^^^^     
+                       
+--------------------------
+help: try removing the method 
+call
+    |
+260 -                         
+                    state.writ
+e().reparent(&id_reparent, 
+new_parent.as_deref());
+260 +                         
+                    state.writ
+e().reparent(&id_reparent, 
+new_parent);
+    |
+
+Some errors have detailed 
+explanations: E0277, E0308, 
+E0599.
+For more information about an 
+error, try `rustc --explain 
+E0277`.
+error: could not compile 
+`vibe-studio` (bin 
+"vibe-studio") due to 11 
+previous errors

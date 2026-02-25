@@ -1,0 +1,97 @@
+﻿cargo :     Checking 
+vibe-studio v0.1.0 (C:\Users\k
+uron\.gemini\antigravity\WorkS
+pace\Vibe-Studio)
+At line:1 char:1
++ cargo check --color never > 
+check_errors_5.txt 2>&1; 
+Get-Content chec ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : 
+    NotSpecified: (    Check  
+  ing vi...ce\Vibe-Studio):   
+ String) [], RemoteExcepti    
+on
+    + FullyQualifiedErrorId : 
+    NativeCommandError
+ 
+error: Failed to parse 
+formatted segment: Expected 
+Ident or Expression
+  --> src\sidebar.rs:67:24
+   |
+67 | ...e: "display: flex; 
+align-items: center; gap: 
+4px; cursor: pointer; 
+flex-grow: 1; min-width: 0; 
+opacity: {if visible { 1.0 } 
+else { 0.35 }};",
+   |       ^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error: Failed to parse 
+formatted segment: Expected 
+Ident or Expression
+   --> src\sidebar.rs:280:44
+    |
+280 | ...e: "display: flex; 
+align-items: center; gap: 
+5px; padding: 6px 8px; 
+cursor: pointer; user-select: 
+none; background: {if 
+is_selected { 
+\"rgba(251,191,36,0.1)\" } 
+else { \"transparent\" }};",
+    |       ^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^
+
+error: Failed to parse 
+formatted segment: Expected 
+Ident or Expression
+  --> src\timeline.rs:48:20
+   |
+48 | ...e: "position: 
+absolute; left: {left_pct}%; 
+width: {width_...or) } else { 
+\"none\".to_string() }};",
+   |       ^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^...^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^
+
+error: Failed to parse 
+formatted segment: Expected 
+Ident or Expression
+  --> src\inspector.rs:47:24
+   |
+47 | ...e: "width: 28px; 
+height: 14px; border-radius: 
+7px; background: {if checked 
+{ \"var(--accent-color)\" } 
+else { 
+\"rgba(255,255,255,0.1)\" }}; 
+display: flex; align-items: 
+center; padding: 0 2px; 
+transition: background 0.2s;",
+   |       ^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^
+
+error: could not compile 
+`vibe-studio` (bin 
+"vibe-studio") due to 4 
+previous errors
