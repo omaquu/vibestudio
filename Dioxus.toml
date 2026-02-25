@@ -4,6 +4,7 @@ default_platform = "web"
 
 [web.app]
 title = "Vibe Studio"
+base_path = "/vibestudio/"
 
 [web.resource]
 style = ["assets/style.css"]
