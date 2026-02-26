@@ -319,9 +319,12 @@ fn CanvasArea() -> Element {
       }
       case 'Waveform': {
         ctx.beginPath();
-        for(let i=0;i<=120;i++){
-          const x=(i/120)*W;
-          const y=cy+35*sc*Math.sin((i*0.18+t)*2+Math.sin(i*0.05+t)*1.5);
+        const tDom = window.__vibeTimeDomain || [];
+        const len = tDom.length ? tDom.length : 120;
+        for(let i=0;i<len;i++){
+          const x=(i/(len-1||1))*W;
+          const val = tDom.length ? ((tDom[i] - 128) / 128) : Math.sin((i*0.18+t)*2+Math.sin(i*0.05+t)*1.5);
+          const y=cy+35*sc*val;
           i===0?ctx.moveTo(x,y):ctx.lineTo(x,y);
         }
         ctx.strokeStyle=c; ctx.lineWidth=2; ctx.stroke(); break;
@@ -489,6 +492,10 @@ fn CanvasArea() -> Element {
       const third = Math.floor(buf.length / 3);
       const avg = (a, b) => buf.slice(a,b).reduce((s,v)=>s+v,0) / ((b-a)||1) / 255;
       window.__vibeFreq = { bass: avg(0,third), mid: avg(third,2*third), treble: avg(2*third,buf.length) };
+      
+      const timeBuf = new Uint8Array(window.__vibeAnalyser.frequencyBinCount);
+      window.__vibeAnalyser.getByteTimeDomainData(timeBuf);
+      window.__vibeTimeDomain = Array.from(timeBuf);
     }
 
     if(!window.__vibeEventsAttached) {
@@ -573,7 +580,7 @@ fn CanvasArea() -> Element {
     ctx.textAlign = 'left';
     ctx.fillText(pw + 'x' + ph, fx + 4, fy + 12);
     let map = {};
-    layers.forEach(l => { map[l['.id']] = l; });
+    layers.forEach(l => { map[l['id']] = l; });
     
     // Compute absolute hierarchical transforms
     layers.forEach(l => {
@@ -586,6 +593,10 @@ fn CanvasArea() -> Element {
        
        let p = map[l.parent];
        let depth = 0;
+       let p_react_bass = false;
+       let p_react_mid = false;
+       let p_react_treble = false;
+
        while(p && depth < 20) {
           abs_x += p.pos_x||0;
           abs_y += p.pos_y||0;
@@ -593,6 +604,11 @@ fn CanvasArea() -> Element {
           abs_op *= p.opacity!=null?p.opacity:1;
           abs_rot += p.rot||0;
           if(p.visible===false) vis = false;
+          
+          if (p.audio_react === 'Bass') p_react_bass = true;
+          if (p.audio_react === 'Mid') p_react_mid = true;
+          if (p.audio_react === 'Treble') p_react_treble = true;
+
           p = map[p.parent];
           depth++;
        }
@@ -602,6 +618,10 @@ fn CanvasArea() -> Element {
        l._abs_op = abs_op;
        l._abs_rot = abs_rot;
        l._abs_vis = vis;
+
+       if (p_react_bass && l.audio_react !== 'Bass') l.audio_react = 'Bass';
+       if (p_react_mid && l.audio_react !== 'Mid') l.audio_react = 'Mid';
+       if (p_react_treble && l.audio_react !== 'Treble') l.audio_react = 'Treble';
     });
 
     layers.forEach(l=>{ if(l._abs_vis) drawLayer(ctx,l,window.__vibeTime,W,H); });
@@ -967,10 +987,17 @@ fn App() -> Element {
                         if let Some(eng) = audio_sync.borrow().as_ref() {
                             let dur = eng.duration();
                             if dur > 0.0 && !dur.is_nan() {
+                                let mut to_expand = Vec::new();
                                 for l in s.layers.iter_mut() {
                                     if l.layer_type == LayerType::Audio && (l.duration - dur).abs() > 0.1 {
                                         l.duration = dur;
+                                        if let Some(pid) = &l.parent_id {
+                                            to_expand.push((pid.clone(), l.start_time + dur));
+                                        }
                                     }
+                                }
+                                for (pid, end_time) in to_expand {
+                                    s.expand_parent_duration(&pid, end_time);
                                 }
                             }
                             Some(eng.current_time())

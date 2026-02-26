@@ -7,7 +7,8 @@ title = "Vibe Studio"
 base_path = "/vibestudio/"
 
 [web.resource]
-style = ["assets/style.css"]
+style = ["/vibestudio/assets/style.css"]
+head = ["<link rel=\"icon\" type=\"image/x-icon\" href=\"/vibestudio/favicon.ico\">"]
 script = []
 
 [web.resource.dev]

@@ -48,7 +48,10 @@ impl AudioEngine {
     }
 
     pub fn play(&self) -> Result<(), JsValue> {
-        let _ = self.audio_el.play()?;
+        let promise = self.audio_el.play()?;
+        let catch_fn = wasm_bindgen::closure::Closure::wrap(Box::new(|_err: JsValue| {}) as Box<dyn FnMut(JsValue)>);
+        let _ = promise.catch(&catch_fn);
+        catch_fn.forget();
         Ok(())
     }
 

@@ -619,10 +619,20 @@ impl AppState {
         if let Some(ref parent) = new_parent {
             if let Some(child) = self.layers.iter().find(|l| l.id == layer_id).cloned() {
                 let child_end = child.start_time + child.duration;
-                if let Some(p) = self.layers.iter_mut().find(|l| l.id == *parent) {
-                    if child_end > p.start_time + p.duration {
-                        p.duration = child_end - p.start_time;
-                    }
+                self.expand_parent_duration(parent, child_end);
+            }
+        }
+    }
+
+    pub fn expand_parent_duration(&mut self, parent_id: &str, child_end_time: f64) {
+        if let Some(parent) = self.layers.iter().find(|l| l.id == parent_id).cloned() {
+            if child_end_time > parent.start_time + parent.duration {
+                let new_dur = child_end_time - parent.start_time;
+                if let Some(p) = self.layers.iter_mut().find(|l| l.id == parent_id) {
+                    p.duration = new_dur;
+                }
+                if let Some(grandparent_id) = parent.parent_id {
+                    self.expand_parent_duration(&grandparent_id, child_end_time);
                 }
             }
         }
@@ -720,7 +730,9 @@ impl AppState {
             if let Some(layer) = self.layers.iter().find(|l| l.id == *lid) {
                 if let Some(pid) = &layer.parent_id {
                     if let Some(parent) = self.layers.iter().find(|l| l.id == *pid) {
-                        parent_bounds = Some((parent.start_time, parent.start_time + parent.duration));
+                        if parent.layer_type != LayerType::Workstream {
+                            parent_bounds = Some((parent.start_time, parent.start_time + parent.duration));
+                        }
                     }
                 }
             }

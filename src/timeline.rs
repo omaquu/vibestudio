@@ -72,7 +72,7 @@ pub fn Timeline() -> Element {
             div {
                 key: "tick-{i}",
                 style: "position: absolute; left: calc({pct}%); top: 0; bottom: 0; display: flex; flex-direction: column; align-items: flex-start; pointer-events: none;",
-                div { style: "font-size: 8px; color: rgba(255,255,255,0.35); padding-left: 2px; line-height: 14px; white-space: nowrap;", "{label}" }
+                div { style: "font-size: 10px; color: rgba(255,255,255,0.35); padding-left: 2px; line-height: 14px; white-space: nowrap;", "{label}" }
                 div { style: "width: 1px; flex-grow: 1; background: rgba(255,255,255,0.08);" }
             }
         })
@@ -370,7 +370,7 @@ pub fn Timeline() -> Element {
 
                                         // Comp header
                                         div {
-                                            style: "height: 22px; flex-shrink: 0; background: rgba(251,191,36,0.07); border-bottom: 1px solid rgba(251,191,36,0.15); display: flex; align-items: center; gap: 4px; padding: 0 6px; cursor: pointer; user-select: none; position: relative;",
+                                            style: "height: 28px; flex-shrink: 0; background: rgba(251,191,36,0.07); border-bottom: 1px solid rgba(251,191,36,0.15); display: flex; align-items: center; gap: 4px; padding: 0 6px; cursor: pointer; user-select: none; position: relative;",
                                             onclick: move |_| { state.write().toggle_comp(&comp_id_toggle); },
                                             onpointerdown: move |evt| {
                                                 evt.stop_propagation();
@@ -378,9 +378,9 @@ pub fn Timeline() -> Element {
                                                 s.selected_id = Some(comp_id_open.clone());
                                                 s.begin_clip_drag(&comp_id_open, crate::model::ClipDragMode::Move, evt.client_coordinates().x);
                                             },
-                                            span { style: "font-size: 8px; color: rgba(255,255,255,0.4);", if is_open { "▾" } else { "▸" } }
-                                            span { style: "font-size: 9px; font-weight: 600; color: #fbbf24; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;", "{comp.name}" }
-                                            span { style: "font-size: 7px; color: rgba(255,255,255,0.3); margin-left: auto; white-space: nowrap;", "{comp.duration:.0}s" }
+                                            span { style: "font-size: 10px; color: rgba(255,255,255,0.4);", if is_open { "▾" } else { "▸" } }
+                                            span { style: "font-size: 11px; font-weight: 600; color: #fbbf24; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;", "{comp.name}" }
+                                            span { style: "font-size: 9px; color: rgba(255,255,255,0.3); margin-left: auto; white-space: nowrap;", "{comp.duration:.0}s" }
                                             
                                             // Resize Handles (Left and Right)
                                             {
@@ -429,10 +429,10 @@ pub fn Timeline() -> Element {
                                                         rsx! {
                                                             div {
                                                                 key: "desc-{desc.id}",
-                                                                style: "height: 22px; flex-shrink: 0; position: relative; border-bottom: 1px solid rgba(255,255,255,0.03); background: {bg};",
+                                                                style: "height: 28px; flex-shrink: 0; position: relative; border-bottom: 1px solid rgba(255,255,255,0.03); background: {bg};",
                                                                 onclick: move |_| { state.write().selected_id = Some(desc_id_sel.clone()); },
                                                                 // Track label
-                                                                div { style: "position: absolute; left: 0; top: 0; bottom: 0; display: flex; align-items: center; padding-left: 6px; font-size: 8px; color: rgba(255,255,255,0.5); pointer-events: none; z-index: 2; background: rgba(11,11,20,0.6); width: 60px; text-overflow: ellipsis; overflow: hidden; white-space: nowrap;",
+                                                                div { style: "position: absolute; left: 0; top: 0; bottom: 0; display: flex; align-items: center; padding-left: 6px; font-size: 10px; color: rgba(255,255,255,0.5); pointer-events: none; z-index: 2; background: rgba(11,11,20,0.6); width: 60px; text-overflow: ellipsis; overflow: hidden; white-space: nowrap;",
                                                                     "{desc.name}"
                                                                 }
                                                                 // Clip bar
@@ -466,7 +466,7 @@ pub fn Timeline() -> Element {
                                                                         }
                                                                     }
                                                                 }
-                                                                div { style: "font-size: 7px; color: {desc_color}; padding: 0 3px; line-height: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; pointer-events: none; position: relative; z-index: 5;", "{desc.name}" }
+                                                                div { style: "font-size: 9px; color: {desc_color}; padding: 0 3px; line-height: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; pointer-events: none; position: relative; z-index: 5;", "{desc.name}" }
                                                                     if desc.layer_type == LayerType::Audio {
                                                                         {
                                                                             let svg_html = r#"<svg width="100%" height="100%" preserveAspectRatio="none"><defs><pattern id="wave-{id}" x="0" y="0" width="40" height="20" patternUnits="userSpaceOnUse"><path d="M0,10 L2,5 L4,15 L6,8 L8,18 L10,6 L12,14 L14,9 L16,11 L18,4 L20,16 L22,7 L24,19 L26,8 L28,12 L30,5 L32,15 L34,7 L36,18 L38,10 L40,10" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></pattern></defs><rect width="100%" height="100%" fill="url(#wave-{id})" /></svg>"#.replace("{id}", &desc.id);
@@ -484,7 +484,7 @@ pub fn Timeline() -> Element {
                                                         }
                                                     }
                                             } else {
-                                                div { style: "flex-grow: 1; display: flex; align-items: center; justify-content: center; font-size: 8px; color: rgba(255,255,255,0.15); text-align: center; padding: 4px;",
+                                                div { style: "flex-grow: 1; display: flex; align-items: center; justify-content: center; font-size: 10px; color: rgba(255,255,255,0.15); text-align: center; padding: 4px;",
                                                     "Click ▸ to expand"
                                                 }
                                             }
@@ -515,11 +515,11 @@ pub fn Timeline() -> Element {
                                     rsx! {
                                         div {
                                             key: "unbound-{layer.id}",
-                                            style: "height: 24px; flex-shrink: 0; display: flex; position: relative; border-bottom: 1px solid rgba(255,255,255,0.03); background: {bg}; cursor: pointer;",
+                                            style: "height: 28px; flex-shrink: 0; display: flex; position: relative; border-bottom: 1px solid rgba(255,255,255,0.03); background: {bg}; cursor: pointer;",
                                             onclick: move |_| { state.write().selected_id = Some(layer_id_sel.clone()); },
                                             
                                             // Left Sticky Label
-                                            div { style: "position: absolute; left: 0; top: 0; bottom: 0; display: flex; align-items: center; padding-left: 8px; font-size: 9px; color: rgba(255,255,255,0.7); pointer-events: none; z-index: 2; background: rgba(11,11,20,0.8); width: 100px; text-overflow: ellipsis; overflow: hidden; white-space: nowrap; border-right: 1px solid rgba(255,255,255,0.05);",
+                                            div { style: "position: absolute; left: 0; top: 0; bottom: 0; display: flex; align-items: center; padding-left: 8px; font-size: 11px; color: rgba(255,255,255,0.7); pointer-events: none; z-index: 2; background: rgba(11,11,20,0.8); width: 100px; text-overflow: ellipsis; overflow: hidden; white-space: nowrap; border-right: 1px solid rgba(255,255,255,0.05);",
                                                 div { style: "width: 6px; height: 6px; border-radius: 50%; background: {layer_color}; margin-right: 6px; flex-shrink: 0;" }
                                                 "{layer.name}"
                                             }
@@ -540,7 +540,7 @@ pub fn Timeline() -> Element {
                                                     }
                                                     evt.stop_propagation();
                                                 },
-                                                div { style: "font-size: 8px; color: #fff; padding: 0 4px; line-height: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; pointer-events: none; position: relative; z-index: 5;", "{layer.name} ({layer.duration:.0}s)" }
+                                                div { style: "font-size: 10px; color: #fff; padding: 0 4px; line-height: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; pointer-events: none; position: relative; z-index: 5;", "{layer.name} ({layer.duration:.0}s)" }
                                                 if layer.layer_type == LayerType::Audio {
                                                     {
                                                         let svg_html = r#"<svg width="100%" height="100%" preserveAspectRatio="none"><defs><pattern id="wave-{id}" x="0" y="0" width="40" height="20" patternUnits="userSpaceOnUse"><path d="M0,10 L2,5 L4,15 L6,8 L8,18 L10,6 L12,14 L14,9 L16,11 L18,4 L20,16 L22,7 L24,19 L26,8 L28,12 L30,5 L32,15 L34,7 L36,18 L38,10 L40,10" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></pattern></defs><rect width="100%" height="100%" fill="url(#wave-{id})" /></svg>"#.replace("{id}", &layer.id);
