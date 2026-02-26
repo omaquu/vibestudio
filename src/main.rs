@@ -365,45 +365,83 @@ fn CanvasArea() -> Element {
       case 'ChromaticAberration': {
         const amt = (l._abs_op || 1) * 6 * sc;
         if(amt > 0.1 && window.__vibeOffscreenCanvas) {
-           const cvs = ctx.canvas;
-           const octx = window.__vibeOffscreenCanvas.getContext('2d');
-           octx.clearRect(0,0,W,H); octx.drawImage(cvs, 0,0);
-           ctx.globalCompositeOperation = 'screen';
-           ctx.globalAlpha = 0.5;
-           ctx.drawImage(window.__vibeOffscreenCanvas, amt, 0);
-           ctx.drawImage(window.__vibeOffscreenCanvas, -amt, 0);
-           ctx.globalAlpha = 1.0;
-           ctx.globalCompositeOperation = 'source-over';
+           const size = 150 * sc;
+           const sx = Math.max(0, cx - size);
+           const sy = Math.max(0, cy - size);
+           const sw = Math.min(W - sx, size * 2);
+           const sh = Math.min(H - sy, size * 2);
+           
+           if (sw > 0 && sh > 0) {
+               const cvs = ctx.canvas;
+               const octx = window.__vibeOffscreenCanvas.getContext('2d');
+               
+               // Clear and copy only the localized region
+               octx.clearRect(sx, sy, sw, sh); 
+               octx.drawImage(cvs, sx, sy, sw, sh, sx, sy, sw, sh);
+               
+               ctx.globalCompositeOperation = 'screen';
+               ctx.globalAlpha = 0.5;
+               
+               // Draw the offset snippets
+               ctx.drawImage(window.__vibeOffscreenCanvas, sx, sy, sw, sh, sx + amt, sy, sw, sh);
+               ctx.drawImage(window.__vibeOffscreenCanvas, sx, sy, sw, sh, sx - amt, sy, sw, sh);
+               
+               ctx.globalAlpha = 1.0;
+               ctx.globalCompositeOperation = 'source-over';
+           }
         }
         break;
       }
       case 'ColorCorrection': {
+        const size = 150 * sc;
+        const sx = Math.max(0, cx - size);
+        const sy = Math.max(0, cy - size);
+        const sw = Math.min(W - sx, size * 2);
+        const sh = Math.min(H - sy, size * 2);
         ctx.fillStyle = c + Math.floor((l._abs_op || 1)*40).toString(16).padStart(2,'0');
         ctx.globalCompositeOperation = 'overlay';
-        ctx.fillRect(0,0,W,H);
+        ctx.fillRect(sx, sy, sw, sh);
         ctx.globalCompositeOperation = 'source-over';
         break;
       }
       case 'FilmGrain': {
         const amt = l._abs_op || 1;
         ctx.fillStyle = `rgba(255,255,255,${amt*0.06})`;
-        for(let i=0; i<W*H*0.001*amt; i++) ctx.fillRect(Math.random()*W, Math.random()*H, 2, 2);
+        const size = 150 * sc;
+        const sx = Math.max(0, cx - size);
+        const sy = Math.max(0, cy - size);
+        const sw = Math.min(W - sx, size * 2);
+        const sh = Math.min(H - sy, size * 2);
+        // Only sprinkle grain in the local area to avoid massive loop lag over W*H
+        for(let i=0; i<sw*sh*0.001*amt; i++) ctx.fillRect(sx + Math.random()*sw, sy + Math.random()*sh, 2, 2);
         break;
       }
       case 'VhsEffect': {
         const amt = l._abs_op || 1;
         ctx.fillStyle = `rgba(0,0,0,${amt*0.12})`;
-        ctx.fillRect(0, Math.random()*H, W, 4 + Math.random()*10);
+        const size = 150 * sc;
+        const sy = Math.max(0, cy - size);
+        const sh = Math.min(H - sy, size * 2);
+        // Localized VHS bands
+        ctx.fillRect(0, sy + Math.random()*sh, W, 4 + Math.random()*10);
         ctx.fillStyle = `rgba(255,255,255,${amt*0.06})`;
-        ctx.fillRect(0, Math.random()*H, W, 2);
+        ctx.fillRect(0, sy + Math.random()*sh, W, 2);
         break;
       }
       case 'GlitchPost': {
         const amt = l._abs_op || 1;
         if(amt > 0.1) {
-            const h2 = Math.random() * 60;
-            const y2 = Math.random() * H;
-            ctx.drawImage(ctx.canvas, 0, y2, W, h2, (Math.random()-0.5)*40*amt, y2, W, h2);
+            const size = 150 * sc;
+            const sx = Math.max(0, cx - size);
+            const sy = Math.max(0, cy - size);
+            const sw = Math.min(W - sx, size * 2);
+            const sh = Math.min(H - sy, size * 2);
+            if(sw > 0 && sh > 0) {
+                const h2 = Math.random() * sh;
+                const y2 = sy + Math.random() * (sh - h2);
+                // Shift a slice horizontally within the bounds
+                ctx.drawImage(ctx.canvas, sx, y2, sw, h2, sx + (Math.random()-0.5)*40*amt, y2, sw, h2);
+            }
         }
         break;
       }
@@ -411,7 +449,12 @@ fn CanvasArea() -> Element {
         const amt = l._abs_op || 1;
         ctx.fillStyle = `rgba(255,255,255,${amt*0.03})`;
         ctx.globalCompositeOperation = 'overlay';
-        ctx.fillRect(0,0,W,H);
+        const size = 150 * sc;
+        const sx = Math.max(0, cx - size);
+        const sy = Math.max(0, cy - size);
+        const sw = Math.min(W - sx, size * 2);
+        const sh = Math.min(H - sy, size * 2);
+        ctx.fillRect(sx, sy, sw, sh);
         ctx.globalCompositeOperation = 'source-over';
         break;
       }
