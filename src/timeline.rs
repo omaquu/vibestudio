@@ -409,7 +409,7 @@ pub fn Timeline() -> Element {
                                         div {
                                             style: "flex-grow: 1; overflow-y: auto; display: flex; flex-direction: column;",
 
-                                            if is_open {
+                                        if is_open {
                                                 if comp_descendants.is_empty() {
                                                     div { style: "font-size: 9px; color: rgba(255,255,255,0.2); padding: 8px 8px; flex-grow: 1; display: flex; align-items: center;", "Empty composition" }
                                                 }
@@ -420,6 +420,8 @@ pub fn Timeline() -> Element {
                                                         let bg = if desc_selected { "rgba(123,97,255,0.15)" } else { "transparent" };
                                                         let desc_id_sel = desc.id.clone();
                                                         let desc_id_drag = desc.id.clone();
+                                                        let desc_id_resize_l = desc.id.clone();
+                                                        let desc_id_resize_r = desc.id.clone();
                                                         // Layer spans full width of comp at proportional horizontal pos
                                                         let layer_pct_left = if comp.duration > 0.0 { ((desc.start_time - comp.start_time).max(0.0) / comp.duration) * 100.0 } else { 0.0 };
                                                         let layer_pct_width = if comp.duration > 0.0 { (desc.duration / comp.duration) * 100.0 } else { 100.0 };
@@ -449,7 +451,22 @@ pub fn Timeline() -> Element {
                                                                         }
                                                                         evt.stop_propagation();
                                                                     },
-                                                                    div { style: "font-size: 7px; color: {desc_color}; padding: 0 3px; line-height: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; pointer-events: none; position: relative; z-index: 5;", "{desc.name}" }
+                                                                    div {
+                                                                        style: "position: absolute; left: 0; top: 0; bottom: 0; width: 6px; cursor: ew-resize; background: rgba(255,255,255,0.1); z-index: 10;",
+                                                                        onpointerdown: move |evt| {
+                                                                            state.write().begin_clip_drag(&desc_id_resize_l, crate::model::ClipDragMode::TrimLeft, evt.client_coordinates().x);
+                                                                            evt.stop_propagation();
+                                                                        }
+                                                                    }
+                                                                    div {
+                                                                        style: "position: absolute; right: 0; top: 0; bottom: 0; width: 6px; cursor: ew-resize; background: rgba(255,255,255,0.1); z-index: 10;",
+                                                                        onpointerdown: move |evt| {
+                                                                            state.write().begin_clip_drag(&desc_id_resize_r, crate::model::ClipDragMode::TrimRight, evt.client_coordinates().x);
+                                                                            evt.stop_propagation();
+                                                                        }
+                                                                    }
+                                                                }
+                                                                div { style: "font-size: 7px; color: {desc_color}; padding: 0 3px; line-height: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; pointer-events: none; position: relative; z-index: 5;", "{desc.name}" }
                                                                     if desc.layer_type == LayerType::Audio {
                                                                         {
                                                                             let svg_html = r#"<svg width="100%" height="100%" preserveAspectRatio="none"><defs><pattern id="wave-{id}" x="0" y="0" width="40" height="20" patternUnits="userSpaceOnUse"><path d="M0,10 L2,5 L4,15 L6,8 L8,18 L10,6 L12,14 L14,9 L16,11 L18,4 L20,16 L22,7 L24,19 L26,8 L28,12 L30,5 L32,15 L34,7 L36,18 L38,10 L40,10" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></pattern></defs><rect width="100%" height="100%" fill="url(#wave-{id})" /></svg>"#.replace("{id}", &desc.id);
@@ -461,55 +478,11 @@ pub fn Timeline() -> Element {
                                                                             }
                                                                         }
                                                                     }
-                                                                    {
-                                                                        let id_l = desc.id.clone();
-                                                                        let id_r = desc.id.clone();
-                                                                        let id_fl = desc.id.clone();
-                                                                        let id_fr = desc.id.clone();
-                                                                        let fade_in_pct = if desc.duration > 0.0 { (desc.fade_in / desc.duration) * 100.0 } else { 0.0 };
-                                                                        let fade_out_pct = if desc.duration > 0.0 { (desc.fade_out / desc.duration) * 100.0 } else { 0.0 };
-                                                                        rsx! {
-                                                                            div {
-                                                                                style: "position: absolute; left: 0; top: 0; bottom: 0; width: 4px; cursor: ew-resize; background: rgba(255,255,255,0.15); z-index: 10;",
-                                                                                onpointerdown: move |evt| {
-                                                                                    state.write().begin_clip_drag(&id_l, crate::model::ClipDragMode::TrimLeft, evt.client_coordinates().x);
-                                                                                    evt.stop_propagation();
-                                                                                }
-                                                                            }
-                                                                            div {
-                                                                                style: "position: absolute; right: 0; top: 0; bottom: 0; width: 4px; cursor: ew-resize; background: rgba(255,255,255,0.15); z-index: 10;",
-                                                                                onpointerdown: move |evt| {
-                                                                                    state.write().begin_clip_drag(&id_r, crate::model::ClipDragMode::TrimRight, evt.client_coordinates().x);
-                                                                                    evt.stop_propagation();
-                                                                                }
-                                                                            }
-                                                                            // Fade shading
-                                                                            div { style: "position: absolute; left: 0; width: {fade_in_pct}%; top: 0; bottom: 0; background: linear-gradient(90deg, rgba(0,0,0,0.8) 0%, rgba(0,0,0,0) 100%); pointer-events: none; z-index: 8;" }
-                                                                            div { style: "position: absolute; right: 0; width: {fade_out_pct}%; top: 0; bottom: 0; background: linear-gradient(270deg, rgba(0,0,0,0.8) 0%, rgba(0,0,0,0) 100%); pointer-events: none; z-index: 8;" }
-                                                                            // Fade handles
-                                                                            div {
-                                                                                style: "position: absolute; left: calc({fade_in_pct}% - 4px); top: 0; width: 8px; height: 8px; cursor: ew-resize; z-index: 12;",
-                                                                                onpointerdown: move |evt| {
-                                                                                    state.write().begin_clip_drag(&id_fl, crate::model::ClipDragMode::FadeIn, evt.client_coordinates().x);
-                                                                                    evt.stop_propagation();
-                                                                                },
-                                                                                div { style: "width: 0; height: 0; border-style: solid; border-width: 8px 8px 0 0; border-color: rgba(255,255,255,0.9) transparent transparent transparent;" }
-                                                                            }
-                                                                            div {
-                                                                                style: "position: absolute; right: calc({fade_out_pct}% - 4px); top: 0; width: 8px; height: 8px; cursor: ew-resize; z-index: 12;",
-                                                                                onpointerdown: move |evt| {
-                                                                                    state.write().begin_clip_drag(&id_fr, crate::model::ClipDragMode::FadeOut, evt.client_coordinates().x);
-                                                                                    evt.stop_propagation();
-                                                                                },
-                                                                                div { style: "width: 0; height: 0; border-style: solid; border-width: 0 8px 8px 0; border-color: transparent rgba(255,255,255,0.9) transparent transparent;" }
-                                                                            }
-                                                                        }
-                                                                    }
+
                                                                 }
                                                             }
                                                         }
                                                     }
-                                                }
                                             } else {
                                                 div { style: "flex-grow: 1; display: flex; align-items: center; justify-content: center; font-size: 8px; color: rgba(255,255,255,0.15); text-align: center; padding: 4px;",
                                                     "Click ▸ to expand"

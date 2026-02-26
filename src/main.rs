@@ -157,9 +157,14 @@ fn CanvasArea() -> Element {
   window.__vibeFreq = { bass: 0, mid: 0, treble: 0 };
 
   function setupAnalyser() {
-    const audio = document.querySelector('audio');
+    const audio = document.getElementById('vibe-master-audio');
     if (!audio || !audio.src) return;
-    if (window.__vibeAudioSrc) return;
+    if (window.__vibeAudioSrc) {
+        if (window.__vibeAudioCtx && window.__vibeAudioCtx.state === 'suspended') {
+            window.__vibeAudioCtx.resume();
+        }
+        return;
+    }
     const ctx = new AudioContext();
     const src = ctx.createMediaElementSource(audio);
     const analyser = ctx.createAnalyser();
@@ -169,6 +174,11 @@ fn CanvasArea() -> Element {
     window.__vibeAudioCtx = ctx;
     window.__vibeAnalyser = analyser;
     window.__vibeAudioSrc = src;
+    
+    // Resume context on any user click if it's blocked by autoplay policy
+    window.addEventListener('click', () => { 
+        if(window.__vibeAudioCtx.state === 'suspended') window.__vibeAudioCtx.resume(); 
+    });
   }
 
   function drawLayer(ctx, l, t, W, H) {
@@ -722,11 +732,19 @@ fn CanvasArea() -> Element {
                             // Apply movement to the selected layer
                             if let Some(sel_id) = s.selected_id.clone() {
                                 if let Some(layer) = s.layers.iter_mut().find(|l| l.id == sel_id) {
-                                    // Map visual pixels to coordinate space [-100, 100]. 
-                                    // A width of ~1600px -> multiplier ~ 0.125
-                                    let mult = 0.125;
-                                    layer.position[0] += (dx as f32) * mult;
-                                    layer.position[1] += (dy as f32) * mult;
+                                    // Read exact canvas client bounds to match mouse 1:1
+                                    let mut w = 1600.0;
+                                    let mut h = 900.0;
+                                    if let Ok(w_val) = js_sys::eval("document.getElementById('vibe-preview-canvas').offsetWidth") {
+                                        if let Some(v) = w_val.as_f64() { w = v; }
+                                    }
+                                    if let Ok(h_val) = js_sys::eval("document.getElementById('vibe-preview-canvas').offsetHeight") {
+                                        if let Some(v) = h_val.as_f64() { h = v; }
+                                    }
+                                    let mult_x = 200.0 / w;
+                                    let mult_y = 200.0 / h;
+                                    layer.position[0] += (dx as f32) * (mult_x as f32);
+                                    layer.position[1] += (dy as f32) * (mult_y as f32);
                                 }
                             }
                         }
