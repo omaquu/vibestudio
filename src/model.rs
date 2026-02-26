@@ -7,10 +7,19 @@ pub fn gen_id() -> String {
     format!("layer_{}", ID_COUNTER.fetch_add(1, Ordering::Relaxed))
 }
 
+#[derive(Clone, Debug, PartialEq)]
+pub struct ProjectAsset {
+    pub id: String,
+    pub name: String,
+    pub media_url: String,
+    pub asset_type: String, // "image", "audio", "video"
+}
+
 // ─── Layer Type ───────────────────────────────────────────────────────────────
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 pub enum LayerType {
     Composition,
+    Workstream, // Represents a top-level group of compositions
     SpectrumCircle,
     SpectrumMountain,
     Particles,
@@ -38,6 +47,7 @@ impl LayerType {
     pub fn label(&self) -> &'static str {
         match self {
             Self::Composition => "Composition",
+            Self::Workstream => "Workstream",
             Self::SpectrumCircle => "Spectrum Circle",
             Self::SpectrumMountain => "Spectrum Mountain",
             Self::Particles => "Particles",
@@ -64,6 +74,7 @@ impl LayerType {
     pub fn color_hex(&self) -> &'static str {
         match self {
             Self::Composition => "#fbbf24",
+            Self::Workstream => "#3b82f6", // blue-500
             Self::SpectrumCircle => "#ec4899",
             Self::SpectrumMountain => "#8b5cf6",
             Self::Particles => "#eab308",
@@ -90,6 +101,7 @@ impl LayerType {
     pub fn icon(&self) -> &'static str {
         match self {
             Self::Composition => "📁",
+            Self::Workstream => "🌊",
             Self::Text => "T",
             Self::Image => "🖼",
             Self::Video => "🎬",
@@ -103,8 +115,12 @@ impl LayerType {
     /// All types that can be added via the "Add Layer" modal
     pub fn addable_types() -> &'static [LayerType] {
         &[
+            LayerType::Image,
+            LayerType::Video,
+            LayerType::Audio,
             LayerType::SpectrumCircle,
             LayerType::SpectrumMountain,
+            LayerType::Waveform,
             LayerType::Particles,
             LayerType::ParticleRings,
             LayerType::Starfield,
@@ -113,10 +129,6 @@ impl LayerType {
             LayerType::Laser,
             LayerType::Glitch,
             LayerType::Text,
-            LayerType::Image,
-            LayerType::Video,
-            LayerType::Audio,
-            LayerType::Waveform,
             LayerType::ChromaticAberration,
             LayerType::ColorCorrection,
             LayerType::FilmGrain,
@@ -129,6 +141,7 @@ impl LayerType {
     pub fn description(&self) -> &'static str {
         match self {
             Self::Composition => "Group items into an isolated timeline.",
+            Self::Workstream => "Top-level grouping for related compositions and assets.",
             Self::SpectrumCircle => "Circular audio visualizer reacting to frequencies.",
             Self::SpectrumMountain => "Rolling landscape that bounces to music.",
             Self::Particles => "Floating particles emitting from the center.",
@@ -218,6 +231,8 @@ pub struct Layer {
     pub parent_id: Option<String>,
     pub start_time: f64,
     pub duration: f64,
+    pub fade_in: f64,
+    pub fade_out: f64,
     pub opacity: f32,
     pub scale: f32,
     pub position: [f32; 3],
@@ -225,6 +240,10 @@ pub struct Layer {
     pub rotation: f32,
     pub skew_x: f32,
     pub skew_y: f32,
+    pub flip_x: bool,
+    pub flip_y: bool,
+    pub perspective: [f32; 2],
+    pub warp: [f32; 4],
     pub effect_params: EffectParams,
     pub text_params: TextParams,
     pub media_url: Option<String>,
@@ -241,6 +260,8 @@ impl Layer {
             parent_id,
             start_time: 0.0,
             duration: if layer_type == LayerType::Composition { 30.0 } else { 30.0 }, // We will override this when inserting if a parent exists
+            fade_in: 0.0,
+            fade_out: 0.0,
             opacity: 1.0,
             scale: 1.0,
             position: [0.0, 0.0, 0.0],
@@ -248,6 +269,10 @@ impl Layer {
             rotation: 0.0,
             skew_x: 0.0,
             skew_y: 0.0,
+            flip_x: false,
+            flip_y: false,
+            perspective: [0.0, 0.0],
+            warp: [0.0, 0.0, 0.0, 0.0],
             effect_params: EffectParams::default(),
             text_params: TextParams::default(),
             media_url: None,
@@ -263,6 +288,8 @@ impl Layer {
             parent_id: None,
             start_time,
             duration,
+            fade_in: 0.0,
+            fade_out: 0.0,
             opacity: 1.0,
             scale: 1.0,
             position: [0.0, 0.0, 0.0],
@@ -270,10 +297,20 @@ impl Layer {
             rotation: 0.0,
             skew_x: 0.0,
             skew_y: 0.0,
+            flip_x: false,
+            flip_y: false,
+            perspective: [0.0, 0.0],
+            warp: [0.0, 0.0, 0.0, 0.0],
             effect_params: EffectParams::default(),
             text_params: TextParams::default(),
             media_url: None,
         }
+    }
+
+    pub fn new_workstream(name: &str) -> Self {
+        let mut ws = Self::new(LayerType::Workstream, None);
+        ws.name = name.to_string();
+        ws
     }
 }
 
@@ -292,6 +329,8 @@ pub enum ClipDragMode {
     Move,
     TrimLeft,
     TrimRight,
+    FadeIn,
+    FadeOut,
 }
 
 #[derive(Clone, Debug, Default)]
@@ -301,6 +340,8 @@ pub struct ClipDragState {
     pub start_pointer_x: f64,
     pub original_start_time: f64,
     pub original_duration: f64,
+    pub original_fade_in: f64,
+    pub original_fade_out: f64,
 }
 
 // ─── App State ────────────────────────────────────────────────────────────────
@@ -321,6 +362,7 @@ pub struct AppState {
     pub drag: DragState,
     pub clip_drag: ClipDragState,
     pub show_add_modal: bool,
+    pub is_cut_mode: bool,
     pub add_parent_id: Option<String>,
     // Audio state
     pub audio_loaded: bool,
@@ -347,25 +389,24 @@ pub struct AppState {
     pub project_name: String,
     pub project_width: u32,
     pub project_height: u32,
+    pub project_assets: Vec<ProjectAsset>,
     // UI Panel Sizes
     pub left_panel_width: f64,
     pub right_panel_width: f64,
     pub bottom_panel_height: f64,
     pub resizing_panel: Option<String>,
+    pub next_comp_index: usize,
 }
 
 impl Default for AppState {
     fn default() -> Self {
-        let comp = Layer::new_composition("Composition 1", 0.0, 30.0);
-        let comp_id = comp.id.clone();
-
-        let mut child = Layer::new(LayerType::SpectrumCircle, Some(comp_id.clone()));
-        child.name = "Neon Circle".to_string();
+        let mut workstream = Layer::new_workstream("Workstream 1");
+        let ws_id = workstream.id.clone();
 
         Self {
-            layers: vec![comp, child],
+            layers: vec![workstream],
             selected_id: None,
-            open_comps: vec![comp_id],
+            open_comps: vec![ws_id],
             master_open: true,
             current_time: 0.0,
             is_playing: false,
@@ -378,6 +419,7 @@ impl Default for AppState {
             drag: DragState::default(),
             clip_drag: ClipDragState::default(),
             show_add_modal: false,
+            is_cut_mode: false,
             add_parent_id: None,
             audio_loaded: false,
             audio_file_name: None,
@@ -398,10 +440,12 @@ impl Default for AppState {
             project_name: "My Project".to_string(),
             project_width: 1920,
             project_height: 1080,
+            project_assets: vec![],
             left_panel_width: 260.0,
             right_panel_width: 280.0,
             bottom_panel_height: 300.0,
             resizing_panel: None,
+            next_comp_index: 1,
         }
     }
 }
@@ -419,6 +463,18 @@ impl AppState {
 
     // ── Queries ────────────────────────────────────────────────────────────
 
+    pub fn root_workstreams(&self) -> Vec<&Layer> {
+        self.layers.iter()
+            .filter(|l| l.layer_type == LayerType::Workstream && l.parent_id.is_none())
+            .collect()
+    }
+
+    pub fn all_compositions(&self) -> Vec<&Layer> {
+        self.layers.iter()
+            .filter(|l| l.layer_type == LayerType::Composition)
+            .collect()
+    }
+
     pub fn root_compositions(&self) -> Vec<&Layer> {
         self.layers.iter()
             .filter(|l| l.layer_type == LayerType::Composition && l.parent_id.is_none())
@@ -433,7 +489,16 @@ impl AppState {
 
     pub fn unbound_layers(&self) -> Vec<&Layer> {
         self.layers.iter()
-            .filter(|l| l.parent_id.is_none() && l.layer_type != LayerType::Composition)
+            .filter(|l| l.layer_type != LayerType::Composition && l.layer_type != LayerType::Workstream)
+            .filter(|l| {
+                if l.parent_id.is_none() { return true; }
+                if let Some(pid) = &l.parent_id {
+                    if let Some(p) = self.layers.iter().find(|parent| parent.id == *pid) {
+                        return p.layer_type == LayerType::Workstream;
+                    }
+                }
+                false
+            })
             .collect()
     }
 
@@ -465,12 +530,12 @@ impl AppState {
     }
 
     pub fn timeline_duration(&self) -> f64 {
-        let mut max_end = 120.0_f64;
+        let mut max_end = 0.0_f64;
         for l in &self.layers {
             let end = l.start_time + l.duration;
             if end > max_end { max_end = end; }
         }
-        max_end
+        max_end.max(5.0) // Provide a minimum 5 second timeline if empty
     }
 
     pub fn is_comp_open(&self, id: &str) -> bool {
@@ -481,8 +546,9 @@ impl AppState {
 
     pub fn add_layer(&mut self, mut layer: Layer) {
         if let Some(pid) = &layer.parent_id {
-            if let Some(parent) = self.layers.iter().find(|l| l.id == *pid) {
+            if let Some(parent) = self.layers.iter().find(|l| l.id == *pid).cloned() {
                 layer.duration = parent.duration;
+                layer.start_time = parent.start_time;
             }
         }
         let id = layer.id.clone();
@@ -520,6 +586,25 @@ impl AppState {
     }
 
     pub fn reparent(&mut self, layer_id: &str, new_parent: Option<String>) {
+        if layer_id.starts_with("asset:") {
+            let asset_id = layer_id.trim_start_matches("asset:");
+            if let Some(asset) = self.project_assets.iter().find(|a| a.id == asset_id).cloned() {
+                let layer_type = match asset.asset_type.as_str() {
+                    "audio" => LayerType::Audio,
+                    "video" => LayerType::Video,
+                    _ => LayerType::Image,
+                };
+                let mut layer = Layer::new(layer_type, new_parent);
+                layer.name = asset.name.clone();
+                layer.media_url = Some(asset.media_url.clone());
+                if layer.layer_type == LayerType::Audio {
+                    layer.opacity = 1.0; // max volume by default
+                }
+                self.layers.push(layer);
+            }
+            return;
+        }
+
         // Prevent circular references
         if let Some(ref parent) = new_parent {
             if self.is_descendant_of(parent, layer_id) || parent == layer_id {
@@ -527,7 +612,40 @@ impl AppState {
             }
         }
         if let Some(layer) = self.layers.iter_mut().find(|l| l.id == layer_id) {
-            layer.parent_id = new_parent;
+            layer.parent_id = new_parent.clone();
+        }
+
+        // Auto-expand composition if the dropped item goes past it
+        if let Some(ref parent) = new_parent {
+            if let Some(child) = self.layers.iter().find(|l| l.id == layer_id).cloned() {
+                let child_end = child.start_time + child.duration;
+                if let Some(p) = self.layers.iter_mut().find(|l| l.id == *parent) {
+                    if child_end > p.start_time + p.duration {
+                        p.duration = child_end - p.start_time;
+                    }
+                }
+            }
+        }
+    }
+
+    pub fn split_layer(&mut self, layer_id: &str, time: f64) {
+        let idx = self.layers.iter().position(|l| l.id == layer_id);
+        if let Some(i) = idx {
+            let mut original = self.layers[i].clone();
+            if time > original.start_time && time < original.start_time + original.duration {
+                let first_dur = time - original.start_time;
+                let second_dur = original.duration - first_dur;
+                
+                original.duration = first_dur;
+                self.layers[i] = original.clone();
+                
+                let mut second_half = original.clone();
+                second_half.id = gen_id();
+                second_half.start_time = time;
+                second_half.duration = second_dur;
+                second_half.name = format!("{} (copy)", second_half.name);
+                self.layers.insert(i + 1, second_half);
+            }
         }
     }
 
@@ -583,6 +701,8 @@ impl AppState {
                 start_pointer_x: pointer_x,
                 original_start_time: layer.start_time,
                 original_duration: layer.duration,
+                original_fade_in: layer.fade_in,
+                original_fade_out: layer.fade_out,
             };
             self.selected_id = Some(layer_id.to_string());
         }
@@ -595,16 +715,32 @@ impl AppState {
             let delta_secs = delta_px / pixels_per_second;
             
             let mut is_comp = false;
+            let mut parent_bounds = None;
+            
+            if let Some(layer) = self.layers.iter().find(|l| l.id == *lid) {
+                if let Some(pid) = &layer.parent_id {
+                    if let Some(parent) = self.layers.iter().find(|l| l.id == *pid) {
+                        parent_bounds = Some((parent.start_time, parent.start_time + parent.duration));
+                    }
+                }
+            }
             
             if let Some(layer) = self.layers.iter_mut().find(|l| l.id == *lid) {
                 is_comp = layer.layer_type == LayerType::Composition && layer.parent_id.is_none();
                 
                 match mode {
                     ClipDragMode::Move => {
-                        layer.start_time = (cd.original_start_time + delta_secs).max(0.0);
+                        let mut new_start = (cd.original_start_time + delta_secs).max(0.0);
+                        if let Some((p_start, p_end)) = parent_bounds {
+                            new_start = new_start.clamp(p_start, (p_end - layer.duration).max(p_start));
+                        }
+                        layer.start_time = new_start;
                     }
                     ClipDragMode::TrimLeft => {
-                        let new_start = (cd.original_start_time + delta_secs).max(0.0);
+                        let mut new_start = (cd.original_start_time + delta_secs).max(0.0);
+                        if let Some((p_start, _)) = parent_bounds {
+                            new_start = new_start.max(p_start);
+                        }
                         let end = cd.original_start_time + cd.original_duration;
                         if new_start < end - 0.1 {
                             layer.start_time = new_start;
@@ -612,33 +748,55 @@ impl AppState {
                         }
                     }
                     ClipDragMode::TrimRight => {
-                        let new_dur = (cd.original_duration + delta_secs).max(0.1);
+                        let mut new_dur = (cd.original_duration + delta_secs).max(0.1);
+                        if let Some((_, p_end)) = parent_bounds {
+                            if layer.start_time + new_dur > p_end {
+                                new_dur = (p_end - layer.start_time).max(0.1);
+                            }
+                        }
                         layer.duration = new_dur;
+                    }
+                    ClipDragMode::FadeIn => {
+                        layer.fade_in = (cd.original_fade_in + delta_secs).max(0.0).min(layer.duration - layer.fade_out);
+                    }
+                    ClipDragMode::FadeOut => {
+                        // For fade out, moving dragging left increases the duration of the fade,
+                        // meaning a negative delta means increased fade_out time.
+                        layer.fade_out = (cd.original_fade_out - delta_secs).max(0.0).min(layer.duration - layer.fade_in);
                     }
                 }
             }
-            
             if is_comp {
-                self.enforce_composition_sequence();
+                // Compositions are now absolutely positioned; sequence packing is disabled
+                // self.enforce_composition_sequence();
             }
         }
     }
 
     pub fn enforce_composition_sequence(&mut self) {
-        let mut comp_timings: Vec<(String, f64)> = self.layers.iter()
-            .filter(|l| l.layer_type == LayerType::Composition && l.parent_id.is_none())
-            .map(|l| (l.id.clone(), l.start_time))
-            .collect();
+        let workstreams = self.root_workstreams().into_iter().map(|w| w.id.clone()).collect::<Vec<_>>();
+        
+        let mut groups_to_sequence = vec![None]; // root
+        for ws_id in workstreams {
+            groups_to_sequence.push(Some(ws_id));
+        }
 
-        // Sort by current start_time purely to determine sequence order
-        comp_timings.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal));
+        for pid in groups_to_sequence {
+            let mut comp_timings: Vec<(String, f64)> = self.layers.iter()
+                .filter(|l| l.layer_type == LayerType::Composition && l.parent_id == pid)
+                .map(|l| (l.id.clone(), l.start_time))
+                .collect();
 
-        // Pack them together starting from 0.0
-        let mut current_time = 0.0;
-        for (id, _) in comp_timings {
-            if let Some(layer) = self.layers.iter_mut().find(|l| l.id == id) {
-                layer.start_time = current_time;
-                current_time += layer.duration;
+            // Sort by current start_time purely to determine sequence order
+            comp_timings.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal));
+
+            // Pack them together starting from 0.0
+            let mut current_time = 0.0;
+            for (id, _) in comp_timings {
+                if let Some(layer) = self.layers.iter_mut().find(|l| l.id == id) {
+                    layer.start_time = current_time;
+                    current_time += layer.duration;
+                }
             }
         }
     }
@@ -655,15 +813,25 @@ impl AppState {
         }
     }
 
-    pub fn add_composition(&mut self) {
-        let comps = self.root_compositions();
+    pub fn add_composition(&mut self, target_ws_id: Option<&String>) {
+        let target_ws = if let Some(id) = target_ws_id {
+            Some(id.clone())
+        } else {
+            let workstreams = self.root_workstreams();
+            workstreams.first().map(|w| w.id.clone())
+        };
+
+        let comps = self.all_compositions();
         let mut max_end = 0.0_f64;
         for c in &comps {
-            let end = c.start_time + c.duration;
-            if end > max_end { max_end = end; }
+            if c.parent_id == target_ws {
+                let end = c.start_time + c.duration;
+                if end > max_end { max_end = end; }
+            }
         }
         let count = comps.len() + 1;
-        let comp = Layer::new_composition(&format!("Composition {}", count), max_end, 30.0);
+        let mut comp = Layer::new_composition(&format!("Composition {}", count), max_end, 30.0);
+        comp.parent_id = target_ws;
         let comp_id = comp.id.clone();
         self.add_layer(comp);
         self.open_comps.push(comp_id);

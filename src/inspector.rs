@@ -96,9 +96,9 @@ pub fn Inspector() -> Element {
     let is_global = s.selected_id.as_deref() == Some("__global_effects__");
     let is_project = s.selected_id.as_deref() == Some("__project__");
     
-    // Check if selected is a composition
-    let is_composition = selected.as_ref().map(|l| l.layer_type == LayerType::Composition).unwrap_or(false);
-    let comp_children: Vec<Layer> = if is_composition {
+    // Check if selected is a group (Composition or Workstream)
+    let is_group = selected.as_ref().map(|l| l.layer_type == LayerType::Composition || l.layer_type == LayerType::Workstream).unwrap_or(false);
+    let group_children: Vec<Layer> = if is_group {
         let sel_id = selected.as_ref().unwrap().id.clone();
         s.layers.iter().filter(|l| l.parent_id.as_deref() == Some(&sel_id)).cloned().collect()
     } else {
@@ -192,6 +192,62 @@ pub fn Inspector() -> Element {
                                 rsx! {
                                     div { style: "font-size: 9px; color: rgba(255,255,255,0.25); margin-top: 4px;", "Aspect Ratio: {aspect}" }
                                 }
+                            }
+                        }
+                    }
+                    
+                    // Project Assets Section
+                    Section {
+                        title: "Project Assets".to_string(),
+                        default_open: true,
+                        div { style: "display: flex; flex-direction: column; gap: 8px;",
+                            div { style: "font-size: 9px; color: rgba(255,255,255,0.4);", "Drag assets onto the timeline or compositions to use them." }
+                            
+                            // Asset List
+                            div { style: "display: flex; flex-direction: column; gap: 4px; max-height: 200px; overflow-y: auto;",
+                                if state.read().project_assets.is_empty() {
+                                    div { style: "font-size: 10px; color: rgba(255,255,255,0.2); font-style: italic; padding: 8px 0; text-align: center;", "No assets added yet." }
+                                }
+                                for asset in state.read().project_assets.iter() {
+                                    {
+                                        let aid = asset.id.clone();
+                                        let aname = asset.name.clone();
+                                        let aicon = match asset.asset_type.as_str() {
+                                            "audio" => "🎵",
+                                            "video" => "🎬",
+                                            _ => "🖼",
+                                        };
+                                        rsx! {
+                                            div {
+                                                style: "display: flex; align-items: center; gap: 6px; padding: 4px 6px; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.05); border-radius: 4px; cursor: grab; transition: 0.2s;",
+                                                onpointerdown: move |evt| {
+                                                    evt.stop_propagation();
+                                                    let mut s = state.write();
+                                                    s.drag.source_id = Some(format!("asset:{}", aid));
+                                                },
+                                                span { style: "font-size: 12px;", "{aicon}" }
+                                                span { style: "font-size: 10px; color: rgba(255,255,255,0.8); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex-grow: 1;", "{aname}" }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            
+                            // Add Asset Button (Demo functionality for now)
+                            button {
+                                style: "font-size: 10px; padding: 6px; background: rgba(59,130,246,0.15); border: 1px dashed rgba(59,130,246,0.4); border-radius: 4px; color: #60a5fa; cursor: pointer; transition: 0.2s; margin-top: 4px;",
+                                onclick: move |_| {
+                                    let mut s = state.write();
+                                    let new_id = crate::model::gen_id();
+                                    let asset_len = s.project_assets.len();
+                                    s.project_assets.push(crate::model::ProjectAsset {
+                                        id: new_id.clone(),
+                                        name: format!("New Asset {}", asset_len + 1),
+                                        media_url: "https://example.com/placeholder.png".to_string(),
+                                        asset_type: "image".to_string(),
+                                    });
+                                },
+                                "+ Add Demo Asset"
                             }
                         }
                     }
@@ -309,10 +365,10 @@ pub fn Inspector() -> Element {
                                     span { style: "font-size: 12px; font-weight: 600; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;", "{layer.name}" }
                                     span { style: "font-size: 9px; color: rgba(255,255,255,0.35); text-transform: uppercase; letter-spacing: 0.05em;", "{layer.layer_type.label()}" }
                                 }
-                                if layer.layer_type == LayerType::Composition {
+                                if layer.layer_type == LayerType::Composition || layer.layer_type == LayerType::Workstream {
                                     button {
                                         style: "width: 22px; height: 22px; border-radius: 4px; background: rgba(239,68,68,0.15); border: 1px solid rgba(239,68,68,0.25); color: #ef4444; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 11px; flex-shrink: 0;",
-                                        title: "Delete Composition",
+                                        title: "Delete Group",
                                         onclick: move |_| {
                                             state.write().remove_layer(&id_delete);
                                         },
@@ -320,6 +376,8 @@ pub fn Inspector() -> Element {
                                     }
                                 }
                             }
+
+                            if layer.layer_type != LayerType::Workstream {
 
                             // Transform section
                             Section {
@@ -420,6 +478,72 @@ pub fn Inspector() -> Element {
                                                         if let Ok(v) = evt.value().parse::<f64>() {
                                                             if let Some(l) = state.write().layers.iter_mut().find(|l| l.id == id_sky) {
                                                                 l.skew_y = v as f32;
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+
+                                // Flip X / Y
+                                {
+                                    let id_flipx = layer.id.clone();
+                                    let id_flipy = layer.id.clone();
+                                    rsx! {
+                                        div { style: "display: flex; gap: 12px; margin-top: 6px;",
+                                            Toggle {
+                                                label: "Flip X".to_string(),
+                                                checked: layer.flip_x,
+                                                on_change: move |v| {
+                                                    if let Some(l) = state.write().layers.iter_mut().find(|l| l.id == id_flipx) {
+                                                        l.flip_x = v;
+                                                    }
+                                                }
+                                            }
+                                            Toggle {
+                                                label: "Flip Y".to_string(),
+                                                checked: layer.flip_y,
+                                                on_change: move |v| {
+                                                    if let Some(l) = state.write().layers.iter_mut().find(|l| l.id == id_flipy) {
+                                                        l.flip_y = v;
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+
+                                // Perspective
+                                {
+                                    let id_px = layer.id.clone();
+                                    let id_py = layer.id.clone();
+                                    rsx! {
+                                        div { style: "display: grid; grid-template-columns: 1fr 1fr; gap: 4px; margin-top: 6px;",
+                                            div { style: "display: flex; flex-direction: column; gap: 2px;",
+                                                label { style: "font-size: 9px; color: rgba(255,255,255,0.3);", "Perspective X" }
+                                                input {
+                                                    r#type: "number", step: "0.1", class: "glass-input", style: "font-size: 10px; padding: 3px 4px;",
+                                                    value: "{layer.perspective[0]}",
+                                                    oninput: move |evt| {
+                                                        if let Ok(v) = evt.value().parse::<f64>() {
+                                                            if let Some(l) = state.write().layers.iter_mut().find(|l| l.id == id_px) {
+                                                                l.perspective[0] = v as f32;
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                            div { style: "display: flex; flex-direction: column; gap: 2px;",
+                                                label { style: "font-size: 9px; color: rgba(255,255,255,0.3);", "Perspective Y" }
+                                                input {
+                                                    r#type: "number", step: "0.1", class: "glass-input", style: "font-size: 10px; padding: 3px 4px;",
+                                                    value: "{layer.perspective[1]}",
+                                                    oninput: move |evt| {
+                                                        if let Ok(v) = evt.value().parse::<f64>() {
+                                                            if let Some(l) = state.write().layers.iter_mut().find(|l| l.id == id_py) {
+                                                                l.perspective[1] = v as f32;
                                                             }
                                                         }
                                                     }
@@ -876,16 +1000,18 @@ pub fn Inspector() -> Element {
                                 }
                             }
 
-                            // Composition Children listing
-                            if is_composition {
+                            } // end if layer_type != Workstream
+
+                            // Group Children listing
+                            if is_group {
                                 Section {
-                                    title: format!("Children ({})", comp_children.len()),
+                                    title: format!("Children ({})", group_children.len()),
                                     default_open: true,
                                     div { style: "display: flex; flex-direction: column; gap: 2px;",
-                                        if comp_children.is_empty() {
-                                            div { style: "font-size: 9px; color: rgba(255,255,255,0.25); font-style: italic; padding: 4px 0;", "No children. Add layers inside this composition." }
+                                        if group_children.is_empty() {
+                                            div { style: "font-size: 9px; color: rgba(255,255,255,0.25); font-style: italic; padding: 4px 0;", "No children. Add layers inside." }
                                         }
-                                        for child in comp_children.iter() {
+                                        for child in group_children.iter() {
                                             {
                                                 let child_id = child.id.clone();
                                                 let child_icon = child.layer_type.icon();
@@ -895,7 +1021,7 @@ pub fn Inspector() -> Element {
                                                 rsx! {
                                                     div {
                                                         style: "display: flex; align-items: center; gap: 6px; padding: 3px 4px; border-radius: 3px; cursor: pointer; transition: background 0.15s;",
-                                                        onmouseenter: move |evt| {},
+                                                        onmouseenter: move |_| {},
                                                         onclick: move |_| {
                                                             state.write().selected_id = Some(child_id.clone());
                                                         },

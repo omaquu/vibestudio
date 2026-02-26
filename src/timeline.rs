@@ -16,7 +16,7 @@ pub fn Timeline() -> Element {
     let zoom = s.timeline_zoom as f64;
 
     // Gather compositions sorted by start_time
-    let mut compositions: Vec<Layer> = s.root_compositions().into_iter().cloned().collect();
+    let mut compositions: Vec<Layer> = s.all_compositions().into_iter().cloned().collect();
     compositions.sort_by(|a, b| a.start_time.partial_cmp(&b.start_time).unwrap_or(std::cmp::Ordering::Equal));
 
     let unbound: Vec<Layer> = s.unbound_layers().into_iter().cloned().collect();
@@ -186,11 +186,27 @@ pub fn Timeline() -> Element {
                     }
                 }
 
+                // Cut Mode toggle
+                {
+                    let cut_on = state.read().is_cut_mode;
+                    let toggle_bg = if cut_on { "rgba(239,68,68,0.2)" } else { "rgba(255,255,255,0.05)" };
+                    let toggle_border = if cut_on { "rgba(239,68,68,0.4)" } else { "rgba(255,255,255,0.1)" };
+                    rsx! {
+                        button {
+                            style: "margin-left: 8px; font-size: 11px; padding: 3px 6px; background: {toggle_bg}; border: 1px solid {toggle_border}; border-radius: 3px; color: #fff; cursor: pointer; transition: 0.2s;",
+                            onclick: move |_| {
+                                let mut s = state.write();
+                                s.is_cut_mode = !s.is_cut_mode;
+                            },
+                            "✂️"
+                        }
+                    }
+                }
+
                 div { style: "margin-left: auto; display: flex; gap: 6px;",
                     
                     // Volume slider
                     {
-                        let vol_audio_ctx = audio_ctx.clone();
                         rsx! {
                             div {
                                 style: "display: flex; align-items: center; gap: 6px; margin-right: 12px; background: rgba(255,255,255,0.02); padding: 0 8px; border-radius: 4px; border: 1px solid rgba(255,255,255,0.05);",
@@ -205,9 +221,6 @@ pub fn Timeline() -> Element {
                                     oninput: move |evt| {
                                         if let Ok(v) = evt.value().parse::<f64>() {
                                             state.write().master_volume = v;
-                                            if let Some(eng) = &*vol_audio_ctx.borrow() {
-                                                let _ = eng.set_volume(v);
-                                            }
                                         }
                                     }
                                 }
@@ -235,7 +248,11 @@ pub fn Timeline() -> Element {
                 onwheel: move |evt| {
                     if state.read().timeline_scroll_zoom {
                         // Scroll to zoom
-                        let delta = evt.delta().strip_units().y;
+                        let delta = match evt.delta() {
+                            dioxus::html::geometry::WheelDelta::Pixels(p) => p.y,
+                            dioxus::html::geometry::WheelDelta::Lines(p) => p.y * 16.0,
+                            dioxus::html::geometry::WheelDelta::Pages(p) => p.y * 100.0,
+                        };
                         let z = state.read().timeline_zoom;
                         let new_z = if delta > 0.0 {
                             (z / 1.1).max(0.1)
@@ -250,40 +267,47 @@ pub fn Timeline() -> Element {
                     }
                 },
                 onpointerdown: move |evt| {
-                    if evt.trigger_button() == Some(dioxus::html::input_data::MouseButton::Auxiliary) { // Middle click
-                        let mut s = state.write();
-                        s.is_panning_timeline = true;
-                        s.last_pan_x = evt.client_coordinates().x;
-                    }
+                    // Handled natively via JS for panning below to avoid state lag
                 },
                 onpointermove: move |evt| {
                     let mut s = state.write();
-                    if s.is_panning_timeline {
-                        let cx = evt.client_coordinates().x;
-                        let dx = s.last_pan_x - cx;
-                        s.last_pan_x = cx;
-                        let _ = js_sys::eval(&format!("document.querySelector('.timeline-track-area').scrollBy({}, 0)", dx));
-                    }
                     if s.clip_drag.mode.is_some() {
                         let zoom_val = s.timeline_zoom as f64;
-                        let pps = 100.0 * zoom_val;
+                        let pps = zoom_val * 100.0;
                         s.update_clip_drag(evt.client_coordinates().x, pps);
                     }
                 },
-                onpointerup: move |_| { 
+                onpointerup: move |evt| { 
                     let mut s = state.write();
-                    s.is_panning_timeline = false;
                     s.end_clip_drag(); 
+                    if let Some(source) = s.drag.source_id.take() {
+                        // Calculate time drop
+                        let x = evt.client_coordinates().x;
+                        let offset = s.left_panel_width;
+                        let t = ((x - offset - s.timeline_scroll_x) / (s.timeline_zoom as f64 * 100.0)).max(0.0);
+                        
+                        s.reparent(&source, None); 
+                        
+                        if source.starts_with("asset:") {
+                            let end_idx = s.layers.len() - 1;
+                            if let Some(new_layer) = s.layers.get_mut(end_idx) {
+                                new_layer.start_time = t;
+                            }
+                        } else {
+                            if let Some(layer) = s.layers.iter_mut().find(|l| l.id == source) {
+                                layer.start_time = t;
+                            }
+                        }
+                    }
                 },
                 onmouseleave: move |_| { 
                     let mut s = state.write();
-                    s.is_panning_timeline = false;
                     s.end_clip_drag(); 
                 },
 
-                // Inner container that scales with zoom
+                // Inner container that scales with fixed pixel width for accurate dragging
                 div {
-                    style: "width: calc(100% * {zoom}); min-width: calc(100% * {zoom}); height: 100%; display: flex; flex-direction: column; position: relative;",
+                    style: "width: {duration.max(10.0) * zoom * 100.0}px; height: 100%; display: flex; flex-direction: column; position: relative;",
 
                     // ── Ruler ──
                     div {
@@ -311,13 +335,14 @@ pub fn Timeline() -> Element {
                         }
                     }
 
-                    // ── Composition Panels (side by side, each takes proportional width) ──
+                    // ── Composition Panels (absolutely positioned vertical slices) ──
                     div {
-                        style: "flex-grow: 1; display: flex; flex-direction: row; overflow: hidden; min-height: 0; position: relative;",
+                        style: "flex-grow: 1; overflow: hidden; min-height: 0; position: relative;",
 
                         for comp in compositions.iter() {
                             {
-                                let comp_pct = if duration > 0.0 { (comp.duration / duration) * 100.0 } else { 100.0 / compositions.len().max(1) as f64 };
+                                let comp_pct_left = if duration > 0.0 { ((comp.start_time).max(0.0) / duration) * 100.0 } else { 0.0 };
+                                let comp_pct_width = if duration > 0.0 { (comp.duration / duration) * 100.0 } else { 100.0 / compositions.len().max(1) as f64 };
                                 let comp_id_open = comp.id.clone();
                                 let comp_id_toggle = comp.id.clone();
                                 let comp_color = comp.layer_type.color_hex();
@@ -333,7 +358,7 @@ pub fn Timeline() -> Element {
                                 rsx! {
                                     div {
                                         key: "comp-{comp.id}",
-                                        style: "width: {comp_pct}%; flex-shrink: 0; display: flex; flex-direction: column; border-right: {comp_border}; background: rgba(255,255,255,0.01); overflow: hidden; min-height: 0;",
+                                        style: "position: absolute; left: {comp_pct_left}%; width: {comp_pct_width}%; top: 0; bottom: 0; display: flex; flex-direction: column; border-right: {comp_border}; background: rgba(255,255,255,0.01); overflow: hidden; min-height: 0;",
 
                                         // Comp header
                                         div {
@@ -349,14 +374,22 @@ pub fn Timeline() -> Element {
                                             span { style: "font-size: 9px; font-weight: 600; color: #fbbf24; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;", "{comp.name}" }
                                             span { style: "font-size: 7px; color: rgba(255,255,255,0.3); margin-left: auto; white-space: nowrap;", "{comp.duration:.0}s" }
                                             
-                                            // Handle Right (Comps can only specify duration, start_time is sequence-driven)
+                                            // Resize Handles (Left and Right)
                                             {
-                                                let comp_id_resize = comp.id.clone();
+                                                let comp_id_resize_r = comp.id.clone();
+                                                let comp_id_resize_l = comp.id.clone();
                                                 rsx! {
+                                                    div {
+                                                        style: "position: absolute; left: 0; top: 0; bottom: 0; width: 6px; cursor: ew-resize; background: rgba(255,255,255,0.1); z-index: 10;",
+                                                        onpointerdown: move |evt| {
+                                                            state.write().begin_clip_drag(&comp_id_resize_l, crate::model::ClipDragMode::TrimLeft, evt.client_coordinates().x);
+                                                            evt.stop_propagation();
+                                                        }
+                                                    }
                                                     div {
                                                         style: "position: absolute; right: 0; top: 0; bottom: 0; width: 6px; cursor: ew-resize; background: rgba(255,255,255,0.1); z-index: 10;",
                                                         onpointerdown: move |evt| {
-                                                            state.write().begin_clip_drag(&comp_id_resize, crate::model::ClipDragMode::TrimRight, evt.client_coordinates().x);
+                                                            state.write().begin_clip_drag(&comp_id_resize_r, crate::model::ClipDragMode::TrimRight, evt.client_coordinates().x);
                                                             evt.stop_propagation();
                                                         }
                                                     }
@@ -397,13 +430,36 @@ pub fn Timeline() -> Element {
                                                                     onpointerdown: move |evt| {
                                                                         let mut s = state.write();
                                                                         s.selected_id = Some(desc_id_drag.clone());
-                                                                        s.begin_clip_drag(&desc_id_drag, crate::model::ClipDragMode::Move, evt.client_coordinates().x);
+                                                                        if s.is_cut_mode {
+                                                                            let x = evt.client_coordinates().x;
+                                                                            let offset = s.left_panel_width;
+                                                                            let t = ((x - offset - s.timeline_scroll_x) / (s.timeline_zoom as f64 * 100.0)).max(0.0);
+                                                                            s.split_layer(&desc_id_drag, t);
+                                                                            s.is_cut_mode = false;
+                                                                        } else {
+                                                                            s.begin_clip_drag(&desc_id_drag, crate::model::ClipDragMode::Move, evt.client_coordinates().x);
+                                                                        }
                                                                         evt.stop_propagation();
                                                                     },
-                                                                    div { style: "font-size: 7px; color: {desc_color}; padding: 0 3px; line-height: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; pointer-events: none;", "{desc.name}" }
+                                                                    div { style: "font-size: 7px; color: {desc_color}; padding: 0 3px; line-height: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; pointer-events: none; position: relative; z-index: 5;", "{desc.name}" }
+                                                                    if desc.layer_type == LayerType::Audio {
+                                                                        {
+                                                                            let svg_html = r#"<svg width="100%" height="100%" preserveAspectRatio="none"><defs><pattern id="wave-{id}" x="0" y="0" width="40" height="20" patternUnits="userSpaceOnUse"><path d="M0,10 L2,5 L4,15 L6,8 L8,18 L10,6 L12,14 L14,9 L16,11 L18,4 L20,16 L22,7 L24,19 L26,8 L28,12 L30,5 L32,15 L34,7 L36,18 L38,10 L40,10" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></pattern></defs><rect width="100%" height="100%" fill="url(#wave-{id})" /></svg>"#.replace("{id}", &desc.id);
+                                                                            rsx! {
+                                                                                div {
+                                                                                    style: "position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0.35; pointer-events: none; color: {desc_color};",
+                                                                                    dangerous_inner_html: "{svg_html}",
+                                                                                }
+                                                                            }
+                                                                        }
+                                                                    }
                                                                     {
                                                                         let id_l = desc.id.clone();
                                                                         let id_r = desc.id.clone();
+                                                                        let id_fl = desc.id.clone();
+                                                                        let id_fr = desc.id.clone();
+                                                                        let fade_in_pct = if desc.duration > 0.0 { (desc.fade_in / desc.duration) * 100.0 } else { 0.0 };
+                                                                        let fade_out_pct = if desc.duration > 0.0 { (desc.fade_out / desc.duration) * 100.0 } else { 0.0 };
                                                                         rsx! {
                                                                             div {
                                                                                 style: "position: absolute; left: 0; top: 0; bottom: 0; width: 4px; cursor: ew-resize; background: rgba(255,255,255,0.15); z-index: 10;",
@@ -418,6 +474,26 @@ pub fn Timeline() -> Element {
                                                                                     state.write().begin_clip_drag(&id_r, crate::model::ClipDragMode::TrimRight, evt.client_coordinates().x);
                                                                                     evt.stop_propagation();
                                                                                 }
+                                                                            }
+                                                                            // Fade shading
+                                                                            div { style: "position: absolute; left: 0; width: {fade_in_pct}%; top: 0; bottom: 0; background: linear-gradient(90deg, rgba(0,0,0,0.8) 0%, rgba(0,0,0,0) 100%); pointer-events: none; z-index: 8;" }
+                                                                            div { style: "position: absolute; right: 0; width: {fade_out_pct}%; top: 0; bottom: 0; background: linear-gradient(270deg, rgba(0,0,0,0.8) 0%, rgba(0,0,0,0) 100%); pointer-events: none; z-index: 8;" }
+                                                                            // Fade handles
+                                                                            div {
+                                                                                style: "position: absolute; left: calc({fade_in_pct}% - 4px); top: 0; width: 8px; height: 8px; cursor: ew-resize; z-index: 12;",
+                                                                                onpointerdown: move |evt| {
+                                                                                    state.write().begin_clip_drag(&id_fl, crate::model::ClipDragMode::FadeIn, evt.client_coordinates().x);
+                                                                                    evt.stop_propagation();
+                                                                                },
+                                                                                div { style: "width: 0; height: 0; border-style: solid; border-width: 8px 8px 0 0; border-color: rgba(255,255,255,0.9) transparent transparent transparent;" }
+                                                                            }
+                                                                            div {
+                                                                                style: "position: absolute; right: calc({fade_out_pct}% - 4px); top: 0; width: 8px; height: 8px; cursor: ew-resize; z-index: 12;",
+                                                                                onpointerdown: move |evt| {
+                                                                                    state.write().begin_clip_drag(&id_fr, crate::model::ClipDragMode::FadeOut, evt.client_coordinates().x);
+                                                                                    evt.stop_propagation();
+                                                                                },
+                                                                                div { style: "width: 0; height: 0; border-style: solid; border-width: 0 8px 8px 0; border-color: transparent rgba(255,255,255,0.9) transparent transparent;" }
                                                                             }
                                                                         }
                                                                     }
@@ -472,13 +548,36 @@ pub fn Timeline() -> Element {
                                                 onpointerdown: move |evt| {
                                                     let mut s = state.write();
                                                     s.selected_id = Some(layer_id_drag.clone());
-                                                    s.begin_clip_drag(&layer_id_drag, crate::model::ClipDragMode::Move, evt.client_coordinates().x);
+                                                    if s.is_cut_mode {
+                                                        let x = evt.client_coordinates().x;
+                                                        let offset = s.left_panel_width;
+                                                        let t = ((x - offset - s.timeline_scroll_x) / (s.timeline_zoom as f64 * 100.0)).max(0.0);
+                                                        s.split_layer(&layer_id_drag, t);
+                                                        s.is_cut_mode = false;
+                                                    } else {
+                                                        s.begin_clip_drag(&layer_id_drag, crate::model::ClipDragMode::Move, evt.client_coordinates().x);
+                                                    }
                                                     evt.stop_propagation();
                                                 },
-                                                div { style: "font-size: 8px; color: #fff; padding: 0 4px; line-height: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; pointer-events: none;", "{layer.name} ({layer.duration:.0}s)" }
+                                                div { style: "font-size: 8px; color: #fff; padding: 0 4px; line-height: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; pointer-events: none; position: relative; z-index: 5;", "{layer.name} ({layer.duration:.0}s)" }
+                                                if layer.layer_type == LayerType::Audio {
+                                                    {
+                                                        let svg_html = r#"<svg width="100%" height="100%" preserveAspectRatio="none"><defs><pattern id="wave-{id}" x="0" y="0" width="40" height="20" patternUnits="userSpaceOnUse"><path d="M0,10 L2,5 L4,15 L6,8 L8,18 L10,6 L12,14 L14,9 L16,11 L18,4 L20,16 L22,7 L24,19 L26,8 L28,12 L30,5 L32,15 L34,7 L36,18 L38,10 L40,10" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></pattern></defs><rect width="100%" height="100%" fill="url(#wave-{id})" /></svg>"#.replace("{id}", &layer.id);
+                                                        rsx! {
+                                                            div {
+                                                                style: "position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0.35; pointer-events: none; color: {layer_color};",
+                                                                dangerous_inner_html: "{svg_html}",
+                                                            }
+                                                        }
+                                                    }
+                                                }
                                                 {
                                                     let id_l = layer.id.clone();
                                                     let id_r = layer.id.clone();
+                                                    let id_fl = layer.id.clone();
+                                                    let id_fr = layer.id.clone();
+                                                    let fade_in_pct = if layer.duration > 0.0 { (layer.fade_in / layer.duration) * 100.0 } else { 0.0 };
+                                                    let fade_out_pct = if layer.duration > 0.0 { (layer.fade_out / layer.duration) * 100.0 } else { 0.0 };
                                                     rsx! {
                                                         div {
                                                             style: "position: absolute; left: 0; top: 0; bottom: 0; width: 6px; cursor: ew-resize; background: rgba(255,255,255,0.15); z-index: 10;",
@@ -493,6 +592,26 @@ pub fn Timeline() -> Element {
                                                                 state.write().begin_clip_drag(&id_r, crate::model::ClipDragMode::TrimRight, evt.client_coordinates().x);
                                                                 evt.stop_propagation();
                                                             }
+                                                        }
+                                                        // Fade shading
+                                                        div { style: "position: absolute; left: 0; width: {fade_in_pct}%; top: 0; bottom: 0; background: linear-gradient(90deg, rgba(0,0,0,0.8) 0%, rgba(0,0,0,0) 100%); pointer-events: none; z-index: 8;" }
+                                                        div { style: "position: absolute; right: 0; width: {fade_out_pct}%; top: 0; bottom: 0; background: linear-gradient(270deg, rgba(0,0,0,0.8) 0%, rgba(0,0,0,0) 100%); pointer-events: none; z-index: 8;" }
+                                                        // Fade handles
+                                                        div {
+                                                            style: "position: absolute; left: calc({fade_in_pct}% - 4px); top: 0; width: 8px; height: 8px; cursor: ew-resize; z-index: 12;",
+                                                            onpointerdown: move |evt| {
+                                                                state.write().begin_clip_drag(&id_fl, crate::model::ClipDragMode::FadeIn, evt.client_coordinates().x);
+                                                                evt.stop_propagation();
+                                                            },
+                                                            div { style: "width: 0; height: 0; border-style: solid; border-width: 8px 8px 0 0; border-color: rgba(255,255,255,0.9) transparent transparent transparent;" }
+                                                        }
+                                                        div {
+                                                            style: "position: absolute; right: calc({fade_out_pct}% - 4px); top: 0; width: 8px; height: 8px; cursor: ew-resize; z-index: 12;",
+                                                            onpointerdown: move |evt| {
+                                                                state.write().begin_clip_drag(&id_fr, crate::model::ClipDragMode::FadeOut, evt.client_coordinates().x);
+                                                                evt.stop_propagation();
+                                                            },
+                                                            div { style: "width: 0; height: 0; border-style: solid; border-width: 0 8px 8px 0; border-color: transparent rgba(255,255,255,0.9) transparent transparent;" }
                                                         }
                                                     }
                                                 }

@@ -25,6 +25,7 @@ fn main() {
 fn AddItemModal() -> Element {
     let mut state = use_context::<Signal<AppState>>();
     let mut search = use_signal(String::new);
+    let mut hovered = use_signal(|| None::<LayerType>);
     let parent_id = state.read().add_parent_id.clone();
     let parent_name = parent_id.as_ref()
         .and_then(|pid| state.read().layers.iter().find(|l| l.id == *pid).map(|l| l.name.clone()))
@@ -42,66 +43,92 @@ fn AddItemModal() -> Element {
             onclick: move |_| { state.write().show_add_modal = false; search.set(String::new()); },
 
             div {
-                style: "background: #12121e; border: 1px solid rgba(255,255,255,0.1); border-radius: 16px; width: 540px; max-height: 74vh; display: flex; flex-direction: column; box-shadow: 0 32px 96px rgba(0,0,0,0.95);",
+                style: "background: #12121e; border: 1px solid rgba(255,255,255,0.1); border-radius: 16px; width: 780px; height: 500px; display: flex; box-shadow: 0 32px 96px rgba(0,0,0,0.95); overflow: hidden;",
                 onclick: move |evt| evt.stop_propagation(),
 
-                // Header
+                // Left column: Grid
                 div {
-                    style: "padding: 20px 22px 14px; border-bottom: 1px solid rgba(255,255,255,0.07); flex-shrink: 0;",
-                    div { style: "display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 14px;",
-                        div {
-                            h2 { style: "font-size: 17px; font-weight: 700; color: #fff; margin: 0; letter-spacing: -0.02em;", "Add Effect Layer" }
-                            p { style: "font-size: 11px; color: rgba(255,255,255,0.35); margin: 5px 0 0;", "Parent: {parent_name}" }
+                    style: "flex: 2; display: flex; flex-direction: column; border-right: 1px solid rgba(255,255,255,0.08);",
+                    // Header
+                    div {
+                        style: "padding: 20px 22px 14px; border-bottom: 1px solid rgba(255,255,255,0.07); flex-shrink: 0;",
+                        div { style: "display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 14px;",
+                            div {
+                                h2 { style: "font-size: 17px; font-weight: 700; color: #fff; margin: 0; letter-spacing: -0.02em;", "Add Effect Layer" }
+                                p { style: "font-size: 11px; color: rgba(255,255,255,0.35); margin: 5px 0 0;", "Parent: {parent_name}" }
+                            }
+                            button {
+                                style: "background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.12); color: rgba(255,255,255,0.5); width: 30px; height: 30px; border-radius: 50%; cursor: pointer; font-size: 14px; display: flex; align-items: center; justify-content: center;",
+                                onclick: move |_| { state.write().show_add_modal = false; search.set(String::new()); },
+                                "✕"
+                            }
                         }
-                        button {
-                            style: "background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.12); color: rgba(255,255,255,0.5); width: 30px; height: 30px; border-radius: 50%; cursor: pointer; font-size: 14px; display: flex; align-items: center; justify-content: center;",
-                            onclick: move |_| { state.write().show_add_modal = false; search.set(String::new()); },
-                            "✕"
+                        div { style: "position: relative;",
+                            input {
+                                style: "width: 100%; box-sizing: border-box; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 10px; padding: 9px 14px 9px 38px; color: #fff; font-size: 13px; outline: none;",
+                                placeholder: "Search effects…",
+                                value: "{search}",
+                                oninput: move |evt| search.set(evt.value().clone()),
+                            }
+                            span { style: "position: absolute; left: 12px; top: 50%; transform: translateY(-50%); font-size: 13px; pointer-events: none; opacity: 0.35;", "🔍" }
                         }
                     }
-                    div { style: "position: relative;",
-                        input {
-                            style: "width: 100%; box-sizing: border-box; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 10px; padding: 9px 14px 9px 38px; color: #fff; font-size: 13px; outline: none;",
-                            placeholder: "Search effects…",
-                            value: "{search}",
-                            oninput: move |evt| search.set(evt.value().clone()),
-                        }
-                        span { style: "position: absolute; left: 12px; top: 50%; transform: translateY(-50%); font-size: 13px; pointer-events: none; opacity: 0.35;", "🔍" }
-                    }
-                }
 
-                // Effect grid
-                div {
-                    style: "flex-grow: 1; min-height: 0; overflow-y: auto; padding: 16px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;",
-                    if filtered.is_empty() {
-                        div { style: "grid-column: 1/-1; text-align: center; padding: 32px; color: rgba(255,255,255,0.25); font-size: 13px;",
-                            "No effects match your search"
+                    // Effect grid
+                    div {
+                        style: "flex-grow: 1; min-height: 0; overflow-y: auto; padding: 16px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;",
+                        if filtered.is_empty() {
+                            div { style: "grid-column: 1/-1; text-align: center; padding: 32px; color: rgba(255,255,255,0.25); font-size: 13px;",
+                                "No effects match your search"
+                            }
                         }
-                    }
-                    for lt in filtered.iter() {
-                        {
-                            let layer_type = *lt;
-                            let pid = parent_id.clone();
-                            let col = layer_type.color_hex();
-                            rsx! {
-                                button {
-                                    key: "{layer_type.label()}",
-                                    title: "{layer_type.description()}",
-                                    style: "background: rgba(255,255,255,0.025); border: 1px solid {col}22; border-radius: 12px; padding: 14px 10px 12px; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 9px; transition: all 0.15s ease; text-align: center;",
-                                    onclick: move |_| {
-                                        let mut s = state.write();
-                                        s.add_layer(Layer::new(layer_type, pid.clone()));
-                                        s.show_add_modal = false;
-                                        drop(s);
-                                        search.set(String::new());
-                                    },
-                                    div { style: "width: 46px; height: 30px; border-radius: 8px; background: {col}18; border: 1px solid {col}40; display: flex; align-items: center; justify-content: center; font-size: 18px;",
-                                        "{layer_type.icon()}"
+                        for lt in filtered.iter() {
+                            {
+                                let layer_type = *lt;
+                                let pid = parent_id.clone();
+                                let col = layer_type.color_hex();
+                                rsx! {
+                                    button {
+                                        key: "{layer_type.label()}",
+                                        style: "background: rgba(255,255,255,0.025); border: 1px solid {col}22; border-radius: 12px; padding: 14px 10px 12px; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 9px; transition: all 0.15s ease; text-align: center;",
+                                        onmouseenter: move |_| hovered.set(Some(layer_type)),
+                                        onmouseleave: move |_| hovered.set(None),
+                                        onclick: move |_| {
+                                            let mut s = state.write();
+                                            s.add_layer(Layer::new(layer_type, pid.clone()));
+                                            s.show_add_modal = false;
+                                            drop(s);
+                                            search.set(String::new());
+                                        },
+                                        div { style: "width: 46px; height: 30px; border-radius: 8px; background: {col}18; border: 1px solid {col}40; display: flex; align-items: center; justify-content: center; font-size: 18px;",
+                                            "{layer_type.icon()}"
+                                        }
+                                        span { style: "font-size: 11px; font-weight: 500; color: rgba(255,255,255,0.85); line-height: 1.3;", "{layer_type.label()}" }
                                     }
-                                    span { style: "font-size: 11px; font-weight: 500; color: rgba(255,255,255,0.85); line-height: 1.3;", "{layer_type.label()}" }
-                                    span { style: "font-size: 8px; color: {col}; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;", "FX" }
                                 }
                             }
+                        }
+                    }
+                }
+                
+                // Right column: Preview Area
+                div {
+                    style: "flex: 1; background: rgba(0,0,0,0.2); display: flex; flex-direction: column; justify-content: center; align-items: center; padding: 24px; text-align: center;",
+                    if let Some(lt) = hovered() {
+                        div {
+                            style: "display: flex; flex-direction: column; align-items: center; gap: 16px; animation: 0.2s ease-in fade-in;",
+                            div {
+                                style: "width: 80px; height: 80px; border-radius: 20px; background: {lt.color_hex()}22; border: 2px solid {lt.color_hex()}66; display: flex; align-items: center; justify-content: center; font-size: 40px; box-shadow: 0 0 30px {lt.color_hex()}44;",
+                                "{lt.icon()}"
+                            }
+                            h3 { style: "color: #fff; margin: 0; font-size: 16px; font-weight: 600;", "{lt.label()}" }
+                            p { style: "color: rgba(255,255,255,0.6); font-size: 13px; line-height: 1.5; margin: 0;", "{lt.description()}" }
+                        }
+                    } else {
+                        div {
+                            style: "opacity: 0.3; display: flex; flex-direction: column; align-items: center; gap: 12px;",
+                            span { style: "font-size: 32px;", "✨" }
+                            p { style: "font-size: 12px; margin: 0;", "Hover over an effect to preview" }
                         }
                     }
                 }
@@ -148,16 +175,46 @@ fn CanvasArea() -> Element {
     const cx = W/2 + (l._abs_x||0)*W/200;
     const cy = H/2 + (l._abs_y||0)*H/200;
     let reactMult = 1.0;
+    
+    let fadeMult = 1.0;
+    if (l.start_time !== undefined && l.duration) {
+        const local_t = t - l.start_time;
+        if (l.fade_in > 0 && local_t < l.fade_in) {
+            fadeMult = Math.max(0, local_t / l.fade_in);
+        } else if (l.fade_out > 0 && local_t > l.duration - l.fade_out) {
+            fadeMult = Math.max(0, 1.0 - ((local_t - (l.duration - l.fade_out)) / l.fade_out));
+        }
+    }
+    
     if (l.audio_react === 'Bass') reactMult = 1.0 + window.__vibeFreq.bass * 0.8;
     if (l.audio_react === 'Mid') reactMult = 1.0 + window.__vibeFreq.mid * 0.8;
     if (l.audio_react === 'Treble') reactMult = 1.0 + window.__vibeFreq.treble * 0.8;
     const sc = (l._abs_sc || 1) * reactMult;
-    ctx.globalAlpha = l._abs_op;
+    ctx.globalAlpha = (l._abs_op != null ? l._abs_op : 1.0) * fadeMult;
     const c = l.color || '#7b61ff';
     
     ctx.save();
     ctx.translate(cx, cy);
     if(l._abs_rot) ctx.rotate(l._abs_rot * Math.PI / 180.0);
+    
+    // Simulate perspective using scaling and skew approximation
+    let px = l.perspective ? l.perspective[0] || 0 : 0;
+    let py = l.perspective ? l.perspective[1] || 0 : 0;
+    if (px !== 0 || py !== 0) {
+       // Rough approximation for perspective effect
+       let scaleX = 1 - Math.abs(px) * 0.05;
+       let scaleY = 1 - Math.abs(py) * 0.05;
+       ctx.scale(Math.max(scaleX, 0.1), Math.max(scaleY, 0.1));
+       ctx.transform(1, py * 0.02, px * 0.02, 1, 0, 0);
+    }
+    
+    // Flip X / Y
+    let fx = l.flip_x ? -1 : 1;
+    let fy = l.flip_y ? -1 : 1;
+    if (fx < 0 || fy < 0) {
+       ctx.scale(fx, fy);
+    }
+
     if(l.skew_x || l.skew_y) {
       ctx.transform(1, Math.tan((l.skew_y||0)*Math.PI/180), Math.tan((l.skew_x||0)*Math.PI/180), 1, 0, 0);
     }
@@ -165,13 +222,14 @@ fn CanvasArea() -> Element {
     
     switch(l.type) {
       case 'SpectrumCircle': {
-        const r = 70*sc, bars = 64;
+        const r = 70*sc*reactMult, bars = 64;
         for(let i=0;i<bars;i++){
           const a = (i/bars)*Math.PI*2;
-          const len = r*(0.4+0.6*Math.abs(Math.sin(t*1.5+i*0.25)));
+          const jump = 0.4 + 0.6 * Math.abs(Math.sin(t*1.5+i*0.25)) * reactMult;
+          const len = r * jump;
           ctx.beginPath(); ctx.moveTo(cx+Math.cos(a)*r, cy+Math.sin(a)*r);
           ctx.lineTo(cx+Math.cos(a)*(r+len*0.5), cy+Math.sin(a)*(r+len*0.5));
-          ctx.strokeStyle=c; ctx.lineWidth=2; ctx.stroke();
+          ctx.strokeStyle=c; ctx.lineWidth=2 * reactMult; ctx.stroke();
         }
         ctx.beginPath(); ctx.arc(cx,cy,r*0.25,0,Math.PI*2);
         ctx.fillStyle=c+'55'; ctx.fill(); break;
@@ -180,7 +238,7 @@ fn CanvasArea() -> Element {
         ctx.beginPath(); ctx.moveTo(0,H);
         for(let i=0;i<=100;i++){
           const x=(i/100)*W;
-          const y=cy+40*sc*Math.sin(i*0.18+t*1.4)*Math.abs(Math.sin(i*0.05+t*0.3));
+          const y=cy+40*sc*reactMult*Math.sin(i*0.18+t*1.4)*Math.abs(Math.sin(i*0.05+t*0.3));
           ctx.lineTo(x,y);
         }
         ctx.lineTo(W,H); ctx.closePath();
@@ -189,19 +247,19 @@ fn CanvasArea() -> Element {
       }
       case 'Particles': {
         for(let i=0;i<50;i++){
-          const a=i*2.4+t*0.8; const r=(15+i*2.8)*sc;
-          ctx.beginPath(); ctx.arc(cx+Math.cos(a)*r, cy+Math.sin(a)*r, 2+Math.sin(t+i)*1.2, 0, Math.PI*2);
+          const a=i*2.4+t*0.8; const r=(15+i*2.8)*sc*reactMult;
+          ctx.beginPath(); ctx.arc(cx+Math.cos(a)*r, cy+Math.sin(a)*r, (2+Math.sin(t+i)*1.2)*reactMult, 0, Math.PI*2);
           ctx.fillStyle=c; ctx.fill();
         } break;
       }
       case 'ParticleRings': {
         for(let ring=0;ring<4;ring++){
-          const r=(25+ring*22)*sc;
+          const r=(25+ring*22)*sc*reactMult;
           ctx.beginPath(); ctx.arc(cx,cy,r,0,Math.PI*2);
-          ctx.strokeStyle=c+(ring%2?'55':'33'); ctx.lineWidth=1+ring*0.5; ctx.stroke();
+          ctx.strokeStyle=c+(ring%2?'55':'33'); ctx.lineWidth=(1+ring*0.5)*reactMult; ctx.stroke();
           for(let i=0;i<8;i++){
             const a=i*Math.PI/4+t*(ring%2?0.8:-0.8);
-            ctx.beginPath(); ctx.arc(cx+Math.cos(a)*r, cy+Math.sin(a)*r, 2.5, 0, Math.PI*2);
+            ctx.beginPath(); ctx.arc(cx+Math.cos(a)*r, cy+Math.sin(a)*r, 2.5*reactMult, 0, Math.PI*2);
             ctx.fillStyle=c; ctx.fill();
           }
         } break;
@@ -212,19 +270,19 @@ fn CanvasArea() -> Element {
           const a=i*137.508; 
           let dist = (Math.sqrt(i/120) - (t * 0.1 * dir)) % 1.0;
           if(dist < 0) dist += 1.0;
-          const r=dist*Math.min(W,H)*0.8*sc;
+          const r=dist*Math.min(W,H)*0.8*sc*reactMult;
           if (r < 0.1) continue;
           const b = Math.min(dist * 3.0, 1.0); // fade in from center
-          ctx.beginPath(); ctx.arc(cx+Math.cos(a)*r, cy+Math.sin(a)*r, 0.5+dist*3*sc, 0, Math.PI*2);
+          ctx.beginPath(); ctx.arc(cx+Math.cos(a)*r, cy+Math.sin(a)*r, (0.5+dist*3*sc)*reactMult, 0, Math.PI*2);
           ctx.fillStyle=`rgba(255,255,255,${b})`; ctx.fill();
         } break;
       }
       case 'Tunnel': {
         for(let i=9;i>0;i--){
-          const r=i*20*sc+(t*25)%20;
+          const r=(i*20*sc+(t*25)%20)*reactMult;
           ctx.beginPath(); ctx.arc(cx,cy,r,0,Math.PI*2);
           ctx.strokeStyle=c+Math.floor((i/9)*200).toString(16).padStart(2,'0');
-          ctx.lineWidth=3; ctx.stroke();
+          ctx.lineWidth=3 * reactMult; ctx.stroke();
         } break;
       }
       case 'Kaleidoscope': {
@@ -406,6 +464,32 @@ fn CanvasArea() -> Element {
            }
            window.__vibeHoveredLayer = hit || null;
        });
+
+       window.__vibePanning = false;
+       window.__vibePanStartX = 0;
+       window.__vibePanStartScroll = 0;
+       window.addEventListener('mousedown', e => {
+           if(e.button === 1) {
+               const tl = document.querySelector('.timeline-track-area');
+               if(tl && tl.contains(e.target)) {
+                   e.preventDefault();
+                   window.__vibePanning = true;
+                   window.__vibePanStartX = e.clientX;
+                   window.__vibePanStartScroll = tl.scrollLeft;
+               }
+           }
+       });
+       window.addEventListener('mousemove', e => {
+           if(window.__vibePanning) {
+               const tl = document.querySelector('.timeline-track-area');
+               if(tl) {
+                   tl.scrollLeft = window.__vibePanStartScroll - (e.clientX - window.__vibePanStartX);
+               }
+           }
+       });
+       window.addEventListener('mouseup', e => {
+           if(e.button === 1) window.__vibePanning = false;
+       });
     }
     const ctx=canvas.getContext('2d');
     const W=canvas.width=canvas.offsetWidth;
@@ -523,12 +607,16 @@ fn CanvasArea() -> Element {
         let s = state.read();
         let layers_json = s.layers.iter()
             .map(|l| format!(
-                r#"{{ "id":"{id}","parent":"{pid}","name":"{name}","type":"{ty:?}","visible":{vis},"opacity":{op:.2},"scale":{sc:.2},"rot":{rot:.2},"skew_x":{skx:.2},"skew_y":{sky:.2},"pos_x":{px:.1},"pos_y":{py:.1},"dir":{dir},"color":"{col}","media_url":{url},"audio_react":"{areact:?}","text_str":"{t_str}","text_size":{t_sz},"text_color":"{t_c}","text_stroke":"{t_sc}","text_stroke_w":{t_sw},"text_shadow":"{t_shc}","text_shadow_b":{t_shb} }}, "#,
+                r#"{{ "id":"{id}","parent":"{pid}","name":"{name}","type":"{ty:?}","visible":{vis},"start_time":{st:?},"duration":{dur:?},"fade_in":{fin:?},"fade_out":{fout:?},"opacity":{op:.2},"scale":{sc:.2},"rot":{rot:.2},"skew_x":{skx:.2},"skew_y":{sky:.2},"pos_x":{px:.1},"pos_y":{py:.1},"dir":{dir},"color":"{col}","media_url":{url},"audio_react":"{areact:?}","text_str":"{t_str}","text_size":{t_sz},"text_color":"{t_c}","text_stroke":"{t_sc}","text_stroke_w":{t_sw},"text_shadow":"{t_shc}","text_shadow_b":{t_shb} }}"#,
                 id = l.id,
                 pid = l.parent_id.as_deref().unwrap_or(""),
                 name = l.name.replace('"', "'"),
                 ty = l.layer_type,
                 vis = if l.visible { "true" } else { "false" },
+                st = l.start_time,
+                dur = l.duration,
+                fin = l.fade_in,
+                fout = l.fade_out,
                 op = l.opacity,
                 sc = l.scale,
                 rot = l.rotation,
@@ -573,14 +661,10 @@ fn CanvasArea() -> Element {
                 id: "vibe-preview-canvas",
                 style: "position: absolute; inset: 0; width: 100%; height: 100%; display: block;",
                 onpointerdown: move |evt| {
-                    if let Ok(val) = js_sys::eval("window.__vibeHoveredLayer") {
-                        if let Some(hit_id) = val.as_string() {
-                            let mut s = state.write();
-                            s.selected_id = Some(hit_id.clone());
-                        }
-                    }
-                    state.write().drag.is_canvas_drag = true;
-                    state.write().drag.last_pos = Some((evt.client_coordinates().x, evt.client_coordinates().y));
+                    // Restrict dragging strictly to the currently selected layer
+                    let mut s = state.write();
+                    s.drag.is_canvas_drag = true;
+                    s.drag.last_pos = Some((evt.client_coordinates().x, evt.client_coordinates().y));
                 },
                 onpointermove: move |evt| {
                     let mut s = state.write();
@@ -595,11 +679,28 @@ fn CanvasArea() -> Element {
                             // Apply movement to the selected layer
                             if let Some(sel_id) = s.selected_id.clone() {
                                 if let Some(layer) = s.layers.iter_mut().find(|l| l.id == sel_id) {
-                                    // Approximate mapping: 1000px width = 200 pos_x units -> multiplier 0.2
-                                    layer.position[0] += (dx * 0.2) as f32;
-                                    layer.position[1] += (dy * 0.2) as f32;
+                                    // Map visual pixels to coordinate space [-100, 100]. 
+                                    // A width of ~1600px -> multiplier ~ 0.125
+                                    let mult = 0.125;
+                                    layer.position[0] += (dx as f32) * mult;
+                                    layer.position[1] += (dy as f32) * mult;
                                 }
                             }
+                        }
+                    }
+                },
+                onwheel: move |evt| {
+                    let mut s = state.write();
+                    if let Some(sel_id) = s.selected_id.clone() {
+                        if let Some(layer) = s.layers.iter_mut().find(|l| l.id == sel_id) {
+                            let delta = match evt.delta() {
+                                dioxus::html::geometry::WheelDelta::Pixels(p) => p.y,
+                                dioxus::html::geometry::WheelDelta::Lines(p) => p.y * 16.0,
+                                dioxus::html::geometry::WheelDelta::Pages(p) => p.y * 100.0,
+                            };
+                            // delta is usually 100 or -100 per tick
+                            let zoom_delta = (delta / 10.0) as f32; // ~10.0 units per tick
+                            layer.position[2] -= zoom_delta; // negative delta (scroll up) increases Z (closer)
                         }
                     }
                 },
@@ -674,41 +775,7 @@ fn CanvasArea() -> Element {
                 });
             }
 
-            // Load audio button (small, bottom-right)
-            { let audio2 = audio_ctx.clone();
-              rsx! {
-                label {
-                    style: "position: absolute; bottom: 12px; right: 12px; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.13); border-radius: 8px; padding: 5px 12px; font-size: 10px; color: rgba(255,255,255,0.5); cursor: pointer; z-index: 5; user-select: none;",
-                    "↑ Load Audio"
-                    input {
-                        r#type: "file",
-                        accept: "audio/*",
-                        id: "audio-upload",
-                        style: "display: none;",
-                        onchange: move |_| {
-                            if let Some(window) = web_sys::window() {
-                                if let Some(doc) = window.document() {
-                                    if let Some(el) = doc.get_element_by_id("audio-upload") {
-                                        if let Ok(input_el) = wasm_bindgen::JsCast::dyn_into::<web_sys::HtmlInputElement>(el) {
-                                            if let Some(files) = input_el.files() {
-                                                if let Some(file) = files.get(0) {
-                                                    if let Some(eng) = &mut *audio2.borrow_mut() {
-                                                        let _ = eng.load_file(&file);
-                                                        let mut s = state.write();
-                                                        s.audio_loaded = true;
-                                                        s.audio_file_name = Some(file.name());
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-              }
-            }
+
 
             // Add-layer modal overlays the canvas
             if show_modal {
@@ -806,6 +873,33 @@ fn App() -> Element {
         async move {
             loop {
                 sleep(std::time::Duration::from_millis(16)).await;
+                
+                // Keep audio volume continuously synced
+                {
+                    let s = state.read();
+                    let master_vol = s.master_volume;
+                    let current_t = s.current_time;
+                    let mut audio_track_vol = 0.0;
+                    for l in s.layers.iter() {
+                        if l.layer_type == LayerType::Audio && l.visible {
+                            let local_t = current_t - l.start_time;
+                            if local_t >= 0.0 && local_t <= l.duration {
+                                let mut fade_mult = 1.0;
+                                if l.fade_in > 0.0 && local_t < l.fade_in {
+                                    fade_mult = (local_t / l.fade_in).max(0.0);
+                                } else if l.fade_out > 0.0 && local_t > l.duration - l.fade_out {
+                                    fade_mult = (1.0 - ((local_t - (l.duration - l.fade_out)) / l.fade_out)).max(0.0);
+                                }
+                                audio_track_vol = l.opacity as f64 * fade_mult;
+                            }
+                            break;
+                        }
+                    }
+                    if let Some(eng) = audio_sync.borrow().as_ref() {
+                        eng.set_volume(master_vol * audio_track_vol);
+                    }
+                }
+
                 if state.read().is_playing {
                     let mut s = state.write();
                     let audio_loaded = s.audio_loaded;
@@ -1037,7 +1131,7 @@ fn App() -> Element {
                                                 logs.push(format!("[INFO] Master Volume: {:.0}%", s.master_volume * 100.0));
                                                 logs.push("[INFO] Layers:".to_string());
                                                 for l in &s.layers {
-                                                    if l.layer_type != LayerType::Composition {
+                                                    if l.layer_type != LayerType::Composition && l.layer_type != LayerType::Workstream {
                                                         let vis = if l.visible { "ON " } else { "OFF" };
                                                         logs.push(format!("[INFO]   [{}] {} ({:?}) | {} | opac:{:.2} scale:{:.2} pos:[{:.1}, {:.1}]", 
                                                             l.id.chars().take(6).collect::<String>(), l.name, l.layer_type, vis, l.opacity, l.scale, l.position[0], l.position[1]));
@@ -1084,6 +1178,49 @@ fn App() -> Element {
                     }
                 }
             } // end show_terminal
+
+            // Drag Indicator Overlay
+            {
+                let s = state.read();
+                let drag_pos = s.drag.last_pos.clone();
+                let drag_source = s.drag.source_id.clone();
+                let mut name = "Layer".to_string();
+                let mut icon = "📄";
+                if let Some(source_id) = &drag_source {
+                    if source_id.starts_with("asset:") {
+                        let id = source_id.trim_start_matches("asset:");
+                        if let Some(asset) = s.project_assets.iter().find(|a| a.id == id) {
+                            name = asset.name.clone();
+                            icon = match asset.asset_type.as_str() {
+                                "video" => "🎬",
+                                "audio" => "🎵",
+                                _ => "🖼️"
+                            };
+                        }
+                    } else if let Some(layer) = s.layers.iter().find(|l| l.id == *source_id) {
+                        name = layer.name.clone();
+                        icon = match layer.layer_type {
+                            LayerType::Composition => "📁",
+                            LayerType::Workstream => "🌊",
+                            LayerType::Audio => "🎵",
+                            LayerType::Video => "🎬",
+                            _ => "📄"
+                        };
+                    }
+                }
+                
+                if let (Some((x, y)), Some(_)) = (drag_pos, drag_source) {
+                    rsx! {
+                        div {
+                            style: "position: absolute; left: {x}px; top: {y}px; transform: translate(14px, 14px); pointer-events: none; z-index: 9999; background: rgba(123,97,255,0.95); padding: 5px 12px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.5); font-size: 11px; font-weight: 500; display: flex; align-items: center; gap: 6px; box-shadow: 0 4px 16px rgba(0,0,0,0.6); backdrop-filter: blur(4px);",
+                            span { style: "font-size: 12px;", "{icon}" }
+                            span { style: "color: #fff;", "{name}" }
+                        }
+                    }
+                } else {
+                    rsx! { div { style: "display: none;" } }
+                }
+            }
         }
     }
 }
