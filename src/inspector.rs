@@ -744,7 +744,10 @@ pub fn Inspector() -> Element {
                                                                     let input = event.target;
                                                                     if (input.files && input.files[0]) {{
                                                                         let url = URL.createObjectURL(input.files[0]);
-                                                                        window.dispatchEvent(new CustomEvent("vibe_audio_uploaded", {{detail: {{id: "{}", url: url}}}}));
+                                                                        let temp = new Audio(url);
+                                                                        temp.onloadedmetadata = () => {{
+                                                                            window.dispatchEvent(new CustomEvent("vibe_audio_uploaded", {{detail: {{id: "{}", url: url, duration: temp.duration}}}}));
+                                                                        }};
                                                                     }}
                                                                 "#, id_clone);
                                                                 let _ = js_sys::eval(&script);

@@ -313,17 +313,25 @@ pub fn Timeline() -> Element {
                     div {
                         style: "height: 22px; flex-shrink: 0; background: #09090f; border-bottom: 1px solid rgba(255,255,255,0.07); position: relative; overflow: hidden;",
                         {ticks_elements.into_iter()}
-                        // Scrubbing overlay
-                        input {
-                            r#type: "range",
-                            min: "0.0",
-                            max: "{duration}",
-                            step: "0.01",
-                            value: "{current_time}",
-                            style: "position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: ew-resize; z-index: 10;",
-                            oninput: move |evt| {
-                                if let Ok(v) = evt.value().parse::<f64>() {
-                                    state.write().seek_to(v);
+                            // Scrubbing overlay
+                        {
+                            let scrub_audio_ctx = audio_ctx.clone();
+                            rsx! {
+                                input {
+                                    r#type: "range",
+                                    min: "0.0",
+                                    max: "{duration}",
+                                    step: "0.01",
+                                    value: "{current_time}",
+                                    style: "position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: ew-resize; z-index: 10;",
+                                    oninput: move |evt| {
+                                        if let Ok(v) = evt.value().parse::<f64>() {
+                                            state.write().seek_to(v);
+                                            if let Some(eng) = &*scrub_audio_ctx.borrow() {
+                                                eng.seek(v);
+                                            }
+                                        }
+                                    }
                                 }
                             }
                         }

@@ -776,21 +776,20 @@ fn CanvasArea() -> Element {
                     let mut s_audio = state_clone.to_owned();
                     let actx = audio_ctx_clone.clone();
                     let closure_audio = Closure::wrap(Box::new(move |evt: web_sys::CustomEvent| {
-                        if let Some(_detail) = evt.detail().as_string() {
-                            // Temporary: Dioxus custom events usually pass js objects, stringifying is easier
-                            // Since we sent detail: {id, url} as object, let's just parse it manually or rely on JS to send a JSON string
-                        } else {
-                            // Simpler: just use js_sys::Reflect
-                            let detail = evt.detail();
-                            if let Ok(id_val) = js_sys::Reflect::get(&detail, &JsValue::from_str("id")) {
-                                if let Ok(url_val) = js_sys::Reflect::get(&detail, &JsValue::from_str("url")) {
-                                    if let (Some(id), Some(url)) = (id_val.as_string(), url_val.as_string()) {
-                                        if let Some(l) = s_audio.write().layers.iter_mut().find(|l| l.id == id) {
-                                            l.media_url = Some(url.clone());
+                        let detail = evt.detail();
+                        if let Ok(id_val) = js_sys::Reflect::get(&detail, &JsValue::from_str("id")) {
+                            if let Ok(url_val) = js_sys::Reflect::get(&detail, &JsValue::from_str("url")) {
+                                if let (Some(id), Some(url)) = (id_val.as_string(), url_val.as_string()) {
+                                    if let Some(l) = s_audio.write().layers.iter_mut().find(|l| l.id == id) {
+                                        l.media_url = Some(url.clone());
+                                        if let Ok(dur_val) = js_sys::Reflect::get(&detail, &JsValue::from_str("duration")) {
+                                            if let Some(dur) = dur_val.as_f64() {
+                                                l.duration = dur;
+                                            }
                                         }
-                                        if let Some(engine) = &mut *actx.borrow_mut() {
-                                            engine.load_url(&url);
-                                        }
+                                    }
+                                    if let Some(engine) = &mut *actx.borrow_mut() {
+                                        engine.load_url(&url);
                                     }
                                 }
                             }

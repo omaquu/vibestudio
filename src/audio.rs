@@ -1,12 +1,8 @@
 use wasm_bindgen::prelude::*;
-use web_sys::{AudioContext, AnalyserNode, GainNode, HtmlAudioElement, File, Url, MediaElementAudioSourceNode};
+use web_sys::{HtmlAudioElement, File, Url};
 
 pub struct AudioEngine {
     audio_el: HtmlAudioElement,
-    pub context: AudioContext,
-    pub analyser: AnalyserNode,
-    pub gain: GainNode,
-    pub source: Option<MediaElementAudioSourceNode>,
     object_url: Option<String>,
 }
 
@@ -14,24 +10,19 @@ impl AudioEngine {
     pub fn new() -> Result<Self, JsValue> {
         let audio_el = HtmlAudioElement::new()?;
         audio_el.set_cross_origin(Some("anonymous"));
-        
-        let context = AudioContext::new()?;
-        let analyser = context.create_analyser()?;
-        analyser.set_fft_size(256);
-        
-        let gain = context.create_gain()?;
-        gain.connect_with_audio_node(&context.destination())?;
-        analyser.connect_with_audio_node(&gain)?;
-        
-        let source = context.create_media_element_source(&audio_el)?;
-        source.connect_with_audio_node(&analyser)?;
+        audio_el.set_id("vibe-master-audio");
+        audio_el.set_attribute("style", "display: none;")?;
+
+        if let Some(window) = web_sys::window() {
+            if let Some(document) = window.document() {
+                if let Some(body) = document.body() {
+                    let _ = body.append_child(&audio_el);
+                }
+            }
+        }
 
         Ok(Self {
             audio_el,
-            context,
-            analyser,
-            gain,
-            source: Some(source),
             object_url: None,
         })
     }
@@ -57,7 +48,6 @@ impl AudioEngine {
     }
 
     pub fn play(&self) -> Result<(), JsValue> {
-        let _ = self.context.resume();
         let _ = self.audio_el.play()?;
         Ok(())
     }
@@ -71,7 +61,7 @@ impl AudioEngine {
     }
 
     pub fn set_volume(&self, volume: f64) {
-        self.gain.gain().set_value(volume as f32);
+        self.audio_el.set_volume(volume);
     }
 
     pub fn current_time(&self) -> f64 {
@@ -82,11 +72,7 @@ impl AudioEngine {
         self.audio_el.duration()
     }
 
-    pub fn get_frequency_data(&self) -> Vec<u8> {
-        let mut data = vec![0; self.analyser.frequency_bin_count() as usize];
-        self.analyser.get_byte_frequency_data(&mut data);
-        data
-    }
+
 }
 
 impl Drop for AudioEngine {
@@ -94,6 +80,6 @@ impl Drop for AudioEngine {
         if let Some(url) = &self.object_url {
             let _ = Url::revoke_object_url(url);
         }
-        let _ = self.context.close();
+        self.audio_el.remove();
     }
 }
