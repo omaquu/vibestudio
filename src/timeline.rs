@@ -118,10 +118,22 @@ pub fn Timeline() -> Element {
                 }
 
                 // Stop / Rewind
-                button {
-                    style: "width: 22px; height: 22px; border-radius: 4px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); color: #fff; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 10px; flex-shrink: 0;",
-                    onclick: move |_| { state.write().seek_to(0.0); state.write().is_playing = false; },
-                    "⏹"
+                {
+                    let stop_audio_ctx = audio_ctx.clone();
+                    rsx! {
+                        button {
+                            style: "width: 22px; height: 22px; border-radius: 4px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); color: #fff; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 10px; flex-shrink: 0;",
+                            onclick: move |_| { 
+                                state.write().seek_to(0.0); 
+                                state.write().is_playing = false; 
+                                if let Some(eng) = &*stop_audio_ctx.borrow() {
+                                    let _ = eng.pause();
+                                    eng.seek(0.0);
+                                }
+                            },
+                            "⏹"
+                        }
+                    }
                 }
 
                 span { style: "font-size: 10px; font-family: monospace; color: rgba(255,255,255,0.6); min-width: 72px;", "{time_str} / {dur_str}" }
@@ -284,7 +296,11 @@ pub fn Timeline() -> Element {
                         // Calculate time drop
                         let x = evt.client_coordinates().x;
                         let offset = s.left_panel_width;
-                        let t = ((x - offset - s.timeline_scroll_x) / (s.timeline_zoom as f64 * 100.0)).max(0.0);
+                        let mut scroll_left = 0.0;
+                        if let Ok(sl) = js_sys::eval("document.querySelector('.timeline-track-area') ? document.querySelector('.timeline-track-area').scrollLeft : 0") {
+                            if let Some(v) = sl.as_f64() { scroll_left = v; }
+                        }
+                        let t = ((x - offset + scroll_left) / (s.timeline_zoom as f64 * 100.0)).max(0.0);
                         
                         s.reparent(&source, None); 
                         
@@ -422,10 +438,11 @@ pub fn Timeline() -> Element {
                                                         let desc_id_drag = desc.id.clone();
                                                         let desc_id_resize_l = desc.id.clone();
                                                         let desc_id_resize_r = desc.id.clone();
+                                                        let desc_start_time = desc.start_time;
                                                         // Layer spans full width of comp at proportional horizontal pos
-                                                        let layer_pct_left = if comp.duration > 0.0 { ((desc.start_time - comp.start_time).max(0.0) / comp.duration) * 100.0 } else { 0.0 };
-                                                        let layer_pct_width = if comp.duration > 0.0 { (desc.duration / comp.duration) * 100.0 } else { 100.0 };
-                                                        let layer_pct_width = layer_pct_width.max(2.0);
+                                                        let pps = zoom * 100.0;
+                                                        let layer_px_left = (desc.start_time - comp.start_time).max(0.0) * pps;
+                                                        let layer_px_width = (desc.duration * pps).max(2.0);
                                                         rsx! {
                                                             div {
                                                                 key: "desc-{desc.id}",
@@ -436,15 +453,14 @@ pub fn Timeline() -> Element {
                                                                     "{desc.name}"
                                                                 }
                                                                 // Clip bar
-                                                                div { style: "position: absolute; left: calc(60px + ({layer_pct_left}% * (100% - 60px) / 100)); width: calc({layer_pct_width}% * (100% - 60px) / 100); top: 3px; bottom: 3px; background: {desc_color}30; border: 1px solid {desc_color}80; border-radius: 2px; overflow: hidden; min-width: 4px; cursor: grab;",
+                                                                div { style: "position: absolute; left: calc(60px + {layer_px_left}px); width: {layer_px_width}px; top: 3px; bottom: 3px; background: {desc_color}30; border: 1px solid {desc_color}80; border-radius: 2px; overflow: hidden; min-width: 4px; cursor: grab;",
                                                                     onpointerdown: move |evt| {
                                                                         let mut s = state.write();
                                                                         s.selected_id = Some(desc_id_drag.clone());
                                                                         if s.is_cut_mode {
-                                                                            let x = evt.client_coordinates().x;
-                                                                            let offset = s.left_panel_width;
-                                                                            let t = ((x - offset - s.timeline_scroll_x) / (s.timeline_zoom as f64 * 100.0)).max(0.0);
-                                                                            s.split_layer(&desc_id_drag, t);
+                                                                            let pps = s.timeline_zoom as f64 * 100.0;
+                                                                            let t_local = evt.element_coordinates().x / pps;
+                                                                            s.split_layer(&desc_id_drag, desc_start_time + t_local);
                                                                             s.is_cut_mode = false;
                                                                         } else {
                                                                             s.begin_clip_drag(&desc_id_drag, crate::model::ClipDragMode::Move, evt.client_coordinates().x);
@@ -506,11 +522,12 @@ pub fn Timeline() -> Element {
                                     let bg = if layer_selected { "rgba(123,97,255,0.15)" } else { "transparent" };
                                     let layer_id_sel = layer.id.clone();
                                     let layer_id_drag = layer.id.clone();
+                                    let layer_start_time = layer.start_time;
                                     
                                     // Calculate span across entire global duration
-                                    let layer_pct_left = if duration > 0.0 { ((layer.start_time).max(0.0) / duration) * 100.0 } else { 0.0 };
-                                    let layer_pct_width = if duration > 0.0 { (layer.duration / duration) * 100.0 } else { 100.0 };
-                                    let layer_pct_width = layer_pct_width.max(0.5);
+                                    let pps = zoom * 100.0;
+                                    let layer_px_left = layer.start_time.max(0.0) * pps;
+                                    let layer_px_width = (layer.duration * pps).max(2.0);
 
                                     rsx! {
                                         div {
@@ -525,15 +542,14 @@ pub fn Timeline() -> Element {
                                             }
 
                                             // Track Bar
-                                            div { style: "position: absolute; left: calc(100px + ({layer_pct_left}% * (100% - 100px) / 100)); width: calc({layer_pct_width}% * (100% - 100px) / 100); top: 4px; bottom: 4px; background: {layer_color}40; border: 1px solid {layer_color}80; border-radius: 2px; overflow: hidden; min-width: 4px; cursor: grab;",
+                                            div { style: "position: absolute; left: calc(100px + {layer_px_left}px); width: {layer_px_width}px; top: 4px; bottom: 4px; background: {layer_color}40; border: 1px solid {layer_color}80; border-radius: 2px; overflow: hidden; min-width: 4px; cursor: grab;",
                                                 onpointerdown: move |evt| {
                                                     let mut s = state.write();
                                                     s.selected_id = Some(layer_id_drag.clone());
                                                     if s.is_cut_mode {
-                                                        let x = evt.client_coordinates().x;
-                                                        let offset = s.left_panel_width;
-                                                        let t = ((x - offset - s.timeline_scroll_x) / (s.timeline_zoom as f64 * 100.0)).max(0.0);
-                                                        s.split_layer(&layer_id_drag, t);
+                                                        let pps = s.timeline_zoom as f64 * 100.0;
+                                                        let t_local = evt.element_coordinates().x / pps;
+                                                        s.split_layer(&layer_id_drag, layer_start_time + t_local);
                                                         s.is_cut_mode = false;
                                                     } else {
                                                         s.begin_clip_drag(&layer_id_drag, crate::model::ClipDragMode::Move, evt.client_coordinates().x);

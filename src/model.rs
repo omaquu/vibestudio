@@ -259,7 +259,7 @@ impl Layer {
             visible: true,
             parent_id,
             start_time: 0.0,
-            duration: if layer_type == LayerType::Composition { 30.0 } else { 30.0 }, // We will override this when inserting if a parent exists
+            duration: if layer_type == LayerType::Composition || layer_type == LayerType::Workstream { 30.0 } else { 5.0 },
             fade_in: 0.0,
             fade_out: 0.0,
             opacity: 1.0,
@@ -400,7 +400,7 @@ pub struct AppState {
 
 impl Default for AppState {
     fn default() -> Self {
-        let mut workstream = Layer::new_workstream("Workstream 1");
+        let workstream = Layer::new_workstream("Workstream 1");
         let ws_id = workstream.id.clone();
 
         Self {
@@ -547,8 +547,10 @@ impl AppState {
     pub fn add_layer(&mut self, mut layer: Layer) {
         if let Some(pid) = &layer.parent_id {
             if let Some(parent) = self.layers.iter().find(|l| l.id == *pid).cloned() {
-                layer.duration = parent.duration;
                 layer.start_time = parent.start_time;
+                if layer.start_time + layer.duration > parent.start_time + parent.duration {
+                    layer.duration = (parent.duration).min(layer.duration);
+                }
             }
         }
         let id = layer.id.clone();
