@@ -382,6 +382,8 @@ pub struct AppState {
     pub show_terminal: bool,
     // Playback
     pub loop_playback: bool,
+    // Timeline Snapping
+    pub snap_to_grid: bool,
     // Settings panel
     pub show_settings: bool,
     pub ui_scale: f64,
@@ -435,6 +437,7 @@ impl Default for AppState {
             terminal_logs: vec!["VibeVisualizer Terminal v2.0 — type `help` for commands.".to_string()],
             show_terminal: true,
             loop_playback: false,
+            snap_to_grid: true,
             show_settings: false,
             ui_scale: 1.0,
             project_name: "My Project".to_string(),
@@ -729,6 +732,15 @@ impl AppState {
             let mut is_comp = false;
             let mut parent_bounds = None;
             
+            // Helper fn to snap time to nearest 0.1s increment if setting is enabled
+            let snap = |t: f64| -> f64 {
+                if self.snap_to_grid {
+                    (t * 10.0).round() / 10.0
+                } else {
+                    t
+                }
+            };
+            
             if let Some(layer) = self.layers.iter().find(|l| l.id == *lid) {
                 if let Some(pid) = &layer.parent_id {
                     if let Some(parent) = self.layers.iter().find(|l| l.id == *pid) {
@@ -748,7 +760,7 @@ impl AppState {
                         if let Some((p_start, p_end)) = parent_bounds {
                             new_start = new_start.clamp(p_start, (p_end - layer.duration).max(p_start));
                         }
-                        layer.start_time = new_start;
+                        layer.start_time = snap(new_start);
                     }
                     ClipDragMode::TrimLeft => {
                         let mut new_start = (cd.original_start_time + delta_secs).max(0.0);
@@ -757,8 +769,11 @@ impl AppState {
                         }
                         let end = cd.original_start_time + cd.original_duration;
                         if new_start < end - 0.1 {
-                            layer.start_time = new_start;
-                            layer.duration = end - new_start;
+                            let snapped_start = snap(new_start);
+                            if snapped_start < end - 0.1 {
+                                layer.start_time = snapped_start;
+                                layer.duration = end - snapped_start;
+                            }
                         }
                     }
                     ClipDragMode::TrimRight => {
@@ -768,15 +783,13 @@ impl AppState {
                                 new_dur = (p_end - layer.start_time).max(0.1);
                             }
                         }
-                        layer.duration = new_dur;
+                        layer.duration = snap(new_dur).max(0.1);
                     }
                     ClipDragMode::FadeIn => {
-                        layer.fade_in = (cd.original_fade_in + delta_secs).max(0.0).min(layer.duration - layer.fade_out);
+                        layer.fade_in = snap((cd.original_fade_in + delta_secs).max(0.0).min(layer.duration - layer.fade_out));
                     }
                     ClipDragMode::FadeOut => {
-                        // For fade out, moving dragging left increases the duration of the fade,
-                        // meaning a negative delta means increased fade_out time.
-                        layer.fade_out = (cd.original_fade_out - delta_secs).max(0.0).min(layer.duration - layer.fade_in);
+                        layer.fade_out = snap((cd.original_fade_out - delta_secs).max(0.0).min(layer.duration - layer.fade_in));
                     }
                 }
             }

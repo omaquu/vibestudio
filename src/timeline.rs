@@ -216,6 +216,23 @@ pub fn Timeline() -> Element {
                     }
                 }
 
+                // Snap to Grid toggle
+                {
+                    let snap_on = state.read().snap_to_grid;
+                    let toggle_bg = if snap_on { "rgba(123,97,255,0.2)" } else { "rgba(255,255,255,0.05)" };
+                    let toggle_border = if snap_on { "rgba(123,97,255,0.4)" } else { "rgba(255,255,255,0.1)" };
+                    rsx! {
+                        button {
+                            style: "margin-left: 8px; font-size: 12px; padding: 2px 6px; background: {toggle_bg}; border: 1px solid {toggle_border}; border-radius: 3px; color: #fff; cursor: pointer; transition: 0.2s;",
+                            onclick: move |_| {
+                                let mut s = state.write();
+                                s.snap_to_grid = !s.snap_to_grid;
+                            },
+                            "🧲"
+                        }
+                    }
+                }
+
                 div { style: "margin-left: auto; display: flex; gap: 6px;",
                     
                     // Volume slider

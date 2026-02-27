@@ -1,0 +1,59 @@
+﻿commit c5f51d8a056a69c3ddf368f281ca2e4653d0d44d
+Author: omaquu <yksirotta@gmail.com>
+Date:   Fri Feb 27 07:53:29 2026 +0200
+
+    Fix canvas preview and timeline audio playback
+
+commit 64f19cf624161bec94c1506d05e9301901cbcd7b
+Author: omaquu <yksirotta@gmail.com>
+Date:   Thu Feb 26 22:29:16 2026 +0200
+
+    Fix timeline UI drag calculations, play/stop sync, and GitHub Pages assets routing
+
+commit b06e1c4272267f8b38d55b3740a3c27b5ce752fa
+Author: omaquu <yksirotta@gmail.com>
+Date:   Thu Feb 26 21:54:20 2026 +0200
+
+    Fix UI bugs, audio AbortError, and duration constraints
+
+commit 735c25784b50f880ab586b1c5015c6339651a090
+Author: omaquu <yksirotta@gmail.com>
+Date:   Thu Feb 26 12:57:39 2026 +0200
+
+    fix(ux): add descendant clip handles, 1:1 preview drag ratio, fix audio Reactivity resume
+
+commit 67ebd3a785bc798a908d902686a5be229de0e0af
+Author: omaquu <yksirotta@gmail.com>
+Date:   Thu Feb 26 12:41:12 2026 +0200
+
+    fix(audio): sync timeline scrubbing with engine, expand duration on load, fix reactivity
+
+commit 57a0e87856ab84b748d06c37d0aea69d4f2162c3
+Author: omaquu <yksirotta@gmail.com>
+Date:   Thu Feb 26 08:54:46 2026 +0200
+
+    fix(effects): restrict Chromatic Aberration and other post-effects to layer bounds avoiding screen lag
+
+commit 95f8d120a0835e096c82c676bf6007eacfb02d54
+Author: omaquu <yksirotta@gmail.com>
+Date:   Thu Feb 26 08:53:14 2026 +0200
+
+    fix: dragging, z-axis, audio reactivity, layer menu, and advanced transforms
+
+commit 25f705450ae91a6fcadfce9182fe98eeb6380e72
+Author: omaquu <yksirotta@gmail.com>
+Date:   Wed Feb 25 14:22:42 2026 +0200
+
+    Deploy to GitHub Pages
+
+commit 043c142728df41cf40c22774a8f280c95fd4b460
+Author: omaquu <yksirotta@gmail.com>
+Date:   Wed Feb 25 14:20:46 2026 +0200
+
+    Remove github actions
+
+commit eaa1bb722656bb68bdd69d1e38664dc7203a593a
+Author: omaquu <yksirotta@gmail.com>
+Date:   Wed Feb 25 14:20:18 2026 +0200
+
+    Deploy Vibe Studio to GitHub Pages
