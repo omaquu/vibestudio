@@ -489,7 +489,15 @@ pub fn Sidebar() -> Element {
                             state.write().add_composition(None);
                         },
                         span { style: "font-size: 10px;", "📁+" }
-                        "Composition"
+                        "Comp"
+                    }
+                    button {
+                        style: "flex: 1; font-size: 9px; padding: 6px 0; border: 1px solid rgba(59,130,246,0.5); border-radius: 4px; background: rgba(59,130,246,0.1); color: #3b82f6; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 4px; font-weight: 600;",
+                        onclick: move |_| {
+                            state.write().add_workstream();
+                        },
+                        span { style: "font-size: 10px;", "🌊+" }
+                        "WS"
                     }
                     button {
                         style: "flex: 1; font-size: 9px; padding: 6px 0; border: 1px dashed rgba(123,97,255,0.3); border-radius: 4px; background: transparent; color: #7b61ff; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 4px;",

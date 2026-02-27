@@ -632,8 +632,20 @@ fn CanvasArea() -> Element {
         if(!l._abs_vis) return;
         if(l.type === 'Composition' || l.type === 'Workstream') return;
         const ct = window.__vibeCurrentTime !== undefined ? window.__vibeCurrentTime : window.__vibeTime;
+        // Check own time range
         const local_ct = ct - (l.start_time || 0);
         if(local_ct < -0.001 || local_ct > (l.duration || 999999) + 0.001) return;
+        // Also check parent composition active at current time
+        if(l.parent) {
+            let p = map[l.parent];
+            while(p) {
+                if(p.type === 'Composition' || p.type === 'Workstream') {
+                    const p_local = ct - (p.start_time || 0);
+                    if(p_local < -0.001 || p_local > (p.duration || 999999) + 0.001) return;
+                }
+                p = map[p.parent];
+            }
+        }
         _visibleCount++;
         drawLayer(ctx, l, window.__vibeTime, W, H);
     });
@@ -643,6 +655,48 @@ fn CanvasArea() -> Element {
       ctx.fillStyle='rgba(255,255,255,0.15)';
       ctx.fillText('Canvas Preview — add layers in the sidebar',W/2,H/2);
     }
+
+    // ── Multi-Audio Player Management ──
+    if(!window.__vibeAudioPlayers) window.__vibeAudioPlayers = {};
+    const audioLayers = layers.filter(l => l.type === 'Audio' && l._abs_vis && l.media_url);
+    const isPlaying = window.__vibeIsPlaying || false;
+    const masterVol = window.__vibeMasterVolume !== undefined ? window.__vibeMasterVolume : 1.0;
+    
+    // Create/update audio elements for each audio layer
+    audioLayers.forEach(al => {
+        if(!window.__vibeAudioPlayers[al.id]) {
+            const aud = new Audio();
+            aud.crossOrigin = 'anonymous';
+            aud.src = al.media_url;
+            aud.preload = 'auto';
+            window.__vibeAudioPlayers[al.id] = { el: aud, lastSrc: al.media_url };
+        }
+        const player = window.__vibeAudioPlayers[al.id];
+        if(player.lastSrc !== al.media_url) {
+            player.el.src = al.media_url;
+            player.lastSrc = al.media_url;
+        }
+        player.el.volume = (al._abs_op !== undefined ? al._abs_op : 1.0) * masterVol;
+        
+        const ct = window.__vibeCurrentTime !== undefined ? window.__vibeCurrentTime : window.__vibeTime;
+        const local_ct = ct - (al.start_time || 0);
+        const inRange = local_ct >= -0.05 && local_ct <= (al.duration || 999999) + 0.05;
+        
+        if(isPlaying && inRange) {
+            if(Math.abs(player.el.currentTime - local_ct) > 0.3) {
+                player.el.currentTime = Math.max(0, local_ct);
+            }
+            if(player.el.paused) player.el.play().catch(()=>{});
+        } else {
+            if(!player.el.paused) player.el.pause();
+        }
+    });
+    // Pause any players for removed/inactive layers
+    Object.keys(window.__vibeAudioPlayers).forEach(id => {
+        if(!audioLayers.find(al => al.id === id)) {
+            window.__vibeAudioPlayers[id].el.pause();
+        }
+    });
 
     // Apply Global Post-Effects
     const g = window.__vibeGlobals || {};
@@ -692,7 +746,7 @@ fn CanvasArea() -> Element {
         let s = state.read();
         let layers_json = s.layers.iter()
             .map(|l| format!(
-                r#"{{ "id":"{id}","parent":"{pid}","name":"{name}","type":"{ty:?}","visible":{vis},"start_time":{st:?},"duration":{dur:?},"fade_in":{fin:?},"fade_out":{fout:?},"opacity":{op:.2},"scale":{sc:.2},"rot":{rot:.2},"skew_x":{skx:.2},"skew_y":{sky:.2},"flip_x":{fx},"flip_y":{fy},"pos_x":{px:.1},"pos_y":{py:.1},"dir":{dir},"color":"{col}","media_url":{url},"audio_react":"{areact:?}","text_str":"{t_str}","text_size":{t_sz},"text_color":"{t_c}","text_stroke":"{t_sc}","text_stroke_w":{t_sw},"text_shadow":"{t_shc}","text_shadow_b":{t_shb} }}"#,
+                r#"{{ "id":"{id}","parent":"{pid}","name":"{name}","type":"{ty:?}","visible":{vis},"start_time":{st:?},"duration":{dur:?},"fade_in":{fin:?},"fade_out":{fout:?},"opacity":{op:.2},"scale":{sc:.2},"rot":{rot:.2},"skew_x":{skx:.2},"skew_y":{sky:.2},"flip_x":{fx},"flip_y":{fy},"pos_x":{px:.1},"pos_y":{py:.1},"dir":{dir},"color":"{col}","custom_color":{ccol},"media_url":{url},"audio_react":"{areact:?}","text_str":"{t_str}","text_size":{t_sz},"text_color":"{t_c}","text_stroke":"{t_sc}","text_stroke_w":{t_sw},"text_shadow":"{t_shc}","text_shadow_b":{t_shb},"perspective":[{persp0},{persp1}] }}"#,
                 id = l.id,
                 pid = l.parent_id.as_deref().unwrap_or(""),
                 name = l.name.replace('"', "'"),
@@ -712,7 +766,8 @@ fn CanvasArea() -> Element {
                 px = l.position[0],
                 py = l.position[1],
                 dir = l.effect_params.direction,
-                col = l.layer_type.color_hex(),
+                col = l.custom_color.as_deref().unwrap_or(l.layer_type.color_hex()),
+                ccol = match &l.custom_color { Some(c) => format!("\"{}\"", c), None => "null".to_string() },
                 url = match &l.media_url { Some(u) => format!("\"{}\"", u), None => "null".to_string() },
                 areact = l.audio_react,
                 t_str = l.text_params.text.escape_default(),
@@ -721,7 +776,9 @@ fn CanvasArea() -> Element {
                 t_sc = l.text_params.stroke_color,
                 t_sw = l.text_params.stroke_width,
                 t_shc = l.text_params.shadow_color,
-                t_shb = l.text_params.shadow_blur
+                t_shb = l.text_params.shadow_blur,
+                persp0 = l.perspective[0],
+                persp1 = l.perspective[1]
             ))
             .collect::<String>();
         let globals_json = format!(
@@ -730,12 +787,13 @@ fn CanvasArea() -> Element {
             s.global_color_hue, s.global_color_saturation, s.global_sharpening, s.global_vignette
         );
         let ct = s.current_time;
+        let is_playing = s.is_playing;
         let js = format!(
-            "window.__vibeLayers=[{}]; window.__vibeGlobals={}; window.__vibeMasterVolume={}; window.__vibeProjectW={}; window.__vibeProjectH={}; window.__vibeSelectedId='{}'; window.__vibeCurrentTime={};", 
+            "window.__vibeLayers=[{}]; window.__vibeGlobals={}; window.__vibeMasterVolume={}; window.__vibeProjectW={}; window.__vibeProjectH={}; window.__vibeSelectedId='{}'; window.__vibeCurrentTime={}; window.__vibeIsPlaying={};", 
             layers_json.trim_end_matches([',', ' ']), globals_json, s.master_volume,
             s.project_width, s.project_height,
             s.selected_id.as_deref().unwrap_or(""),
-            ct
+            ct, is_playing
         );
         let _ = js_sys::eval(&js);
     }

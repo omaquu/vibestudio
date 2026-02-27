@@ -247,6 +247,7 @@ pub struct Layer {
     pub effect_params: EffectParams,
     pub text_params: TextParams,
     pub media_url: Option<String>,
+    pub custom_color: Option<String>,
 }
 
 impl Layer {
@@ -276,6 +277,7 @@ impl Layer {
             effect_params: EffectParams::default(),
             text_params: TextParams::default(),
             media_url: None,
+            custom_color: None,
         }
     }
 
@@ -304,6 +306,7 @@ impl Layer {
             effect_params: EffectParams::default(),
             text_params: TextParams::default(),
             media_url: None,
+            custom_color: None,
         }
     }
 
@@ -550,9 +553,15 @@ impl AppState {
     pub fn add_layer(&mut self, mut layer: Layer) {
         if let Some(pid) = &layer.parent_id {
             if let Some(parent) = self.layers.iter().find(|l| l.id == *pid).cloned() {
-                layer.start_time = parent.start_time;
-                if layer.start_time + layer.duration > parent.start_time + parent.duration {
-                    layer.duration = (parent.duration).min(layer.duration);
+                if parent.layer_type == LayerType::Composition {
+                    // Default child to match parent's start and duration
+                    layer.start_time = parent.start_time;
+                    layer.duration = parent.duration;
+                } else {
+                    layer.start_time = parent.start_time;
+                    if layer.start_time + layer.duration > parent.start_time + parent.duration {
+                        layer.duration = (parent.duration).min(layer.duration);
+                    }
                 }
             }
         }
@@ -732,13 +741,31 @@ impl AppState {
             let mut is_comp = false;
             let mut parent_bounds = None;
             
-            // Helper fn to snap time to nearest 0.1s increment if setting is enabled
-            let snap = |t: f64| -> f64 {
-                if self.snap_to_grid {
-                    (t * 10.0).round() / 10.0
-                } else {
-                    t
+            // Collect sibling edge times for edge-snapping
+            let mut sibling_edges: Vec<f64> = Vec::new();
+            if self.snap_to_grid {
+                let dragged_parent = self.layers.iter().find(|l| l.id == *lid).and_then(|l| l.parent_id.clone());
+                for l in &self.layers {
+                    if l.id == *lid { continue; }
+                    if l.parent_id == dragged_parent || l.layer_type == LayerType::Composition {
+                        sibling_edges.push(l.start_time);
+                        sibling_edges.push(l.start_time + l.duration);
+                    }
                 }
+            }
+            
+            // Snap helper: grid snap + edge snap to siblings
+            let snap_threshold = 5.0 / pixels_per_second; // 5px in seconds
+            let snap = |t: f64| -> f64 {
+                if !self.snap_to_grid { return t; }
+                // First try edge-snap to siblings
+                for &edge in &sibling_edges {
+                    if (t - edge).abs() < snap_threshold {
+                        return edge;
+                    }
+                }
+                // Fall back to grid snap (0.1s)
+                (t * 10.0).round() / 10.0
             };
             
             if let Some(layer) = self.layers.iter().find(|l| l.id == *lid) {
@@ -856,11 +883,23 @@ impl AppState {
                 if end > max_end { max_end = end; }
             }
         }
-        let count = comps.len() + 1;
+        self.next_comp_index += 1;
+        let count = self.next_comp_index;
         let mut comp = Layer::new_composition(&format!("Composition {}", count), max_end, 30.0);
         comp.parent_id = target_ws;
         let comp_id = comp.id.clone();
         self.add_layer(comp);
         self.open_comps.push(comp_id);
+    }
+
+    pub fn add_workstream(&mut self) {
+        // Place new workstream after all existing content
+        let max_end = self.timeline_duration();
+        let ws_count = self.root_workstreams().len() + 1;
+        let mut ws = Layer::new_workstream(&format!("Workstream {}", ws_count));
+        ws.start_time = max_end;
+        let ws_id = ws.id.clone();
+        self.layers.push(ws);
+        self.open_comps.push(ws_id);
     }
 }
