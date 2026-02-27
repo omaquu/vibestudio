@@ -109,7 +109,8 @@ pub fn Timeline() -> Element {
                                 let next = !s.is_playing;
                                 s.is_playing = next;
                                 if let Some(eng) = &*play_audio_ctx.borrow() {
-                                    if next { let _ = eng.play(); } else { let _ = eng.pause(); }
+                                    let al = s.audio_loaded;
+                                    if next { if al { let _ = eng.play(); } } else { let _ = eng.pause(); }
                                 }
                             },
                             if is_playing { "⏸" } else { "▶" }

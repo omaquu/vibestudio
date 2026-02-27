@@ -351,11 +351,14 @@ fn CanvasArea() -> Element {
           if(!window.__vibeImages) window.__vibeImages = {};
           if(!window.__vibeImages[l.media_url]) {
             const img = new Image();
+            img.crossOrigin = 'anonymous';
+            img.onload = function() { window.__vibeImagesDirty = true; };
+            img.onerror = function() { window.__vibeImages[l.media_url].error = true; };
             img.src = l.media_url;
             window.__vibeImages[l.media_url] = img;
           }
           const img = window.__vibeImages[l.media_url];
-          if(img && img.complete && img.naturalWidth) {
+          if(img && img.complete && img.naturalWidth && !img.error) {
             // Draw centered
             const w = img.naturalWidth * sc;
             const h = img.naturalHeight * sc;
@@ -624,9 +627,18 @@ fn CanvasArea() -> Element {
        if (p_react_treble && l.audio_react !== 'Treble') l.audio_react = 'Treble';
     });
 
-    layers.forEach(l=>{ if(l._abs_vis) drawLayer(ctx,l,window.__vibeTime,W,H); });
+    let _visibleCount = 0;
+    layers.forEach(l=>{
+        if(!l._abs_vis) return;
+        if(l.type === 'Composition' || l.type === 'Workstream') return;
+        const ct = window.__vibeCurrentTime !== undefined ? window.__vibeCurrentTime : window.__vibeTime;
+        const local_ct = ct - (l.start_time || 0);
+        if(local_ct < -0.001 || local_ct > (l.duration || 999999) + 0.001) return;
+        _visibleCount++;
+        drawLayer(ctx, l, window.__vibeTime, W, H);
+    });
     
-    if(layers.length===0){
+    if(_visibleCount===0){
       ctx.font='13px system-ui'; ctx.textAlign='center'; ctx.textBaseline='middle';
       ctx.fillStyle='rgba(255,255,255,0.15)';
       ctx.fillText('Canvas Preview — add layers in the sidebar',W/2,H/2);
@@ -680,7 +692,7 @@ fn CanvasArea() -> Element {
         let s = state.read();
         let layers_json = s.layers.iter()
             .map(|l| format!(
-                r#"{{ "id":"{id}","parent":"{pid}","name":"{name}","type":"{ty:?}","visible":{vis},"start_time":{st:?},"duration":{dur:?},"fade_in":{fin:?},"fade_out":{fout:?},"opacity":{op:.2},"scale":{sc:.2},"rot":{rot:.2},"skew_x":{skx:.2},"skew_y":{sky:.2},"pos_x":{px:.1},"pos_y":{py:.1},"dir":{dir},"color":"{col}","media_url":{url},"audio_react":"{areact:?}","text_str":"{t_str}","text_size":{t_sz},"text_color":"{t_c}","text_stroke":"{t_sc}","text_stroke_w":{t_sw},"text_shadow":"{t_shc}","text_shadow_b":{t_shb} }}"#,
+                r#"{{ "id":"{id}","parent":"{pid}","name":"{name}","type":"{ty:?}","visible":{vis},"start_time":{st:?},"duration":{dur:?},"fade_in":{fin:?},"fade_out":{fout:?},"opacity":{op:.2},"scale":{sc:.2},"rot":{rot:.2},"skew_x":{skx:.2},"skew_y":{sky:.2},"flip_x":{fx},"flip_y":{fy},"pos_x":{px:.1},"pos_y":{py:.1},"dir":{dir},"color":"{col}","media_url":{url},"audio_react":"{areact:?}","text_str":"{t_str}","text_size":{t_sz},"text_color":"{t_c}","text_stroke":"{t_sc}","text_stroke_w":{t_sw},"text_shadow":"{t_shc}","text_shadow_b":{t_shb} }}"#,
                 id = l.id,
                 pid = l.parent_id.as_deref().unwrap_or(""),
                 name = l.name.replace('"', "'"),
@@ -695,6 +707,8 @@ fn CanvasArea() -> Element {
                 rot = l.rotation,
                 skx = l.skew_x,
                 sky = l.skew_y,
+                fx = if l.flip_x { "true" } else { "false" },
+                fy = if l.flip_y { "true" } else { "false" },
                 px = l.position[0],
                 py = l.position[1],
                 dir = l.effect_params.direction,
@@ -715,11 +729,13 @@ fn CanvasArea() -> Element {
             s.global_bloom, s.global_chromatic, s.global_film_grain, s.global_vhs,
             s.global_color_hue, s.global_color_saturation, s.global_sharpening, s.global_vignette
         );
+        let ct = s.current_time;
         let js = format!(
-            "window.__vibeLayers=[{}]; window.__vibeGlobals={}; window.__vibeMasterVolume={}; window.__vibeProjectW={}; window.__vibeProjectH={}; window.__vibeSelectedId='{}';", 
+            "window.__vibeLayers=[{}]; window.__vibeGlobals={}; window.__vibeMasterVolume={}; window.__vibeProjectW={}; window.__vibeProjectH={}; window.__vibeSelectedId='{}'; window.__vibeCurrentTime={};", 
             layers_json.trim_end_matches([',', ' ']), globals_json, s.master_volume,
             s.project_width, s.project_height,
-            s.selected_id.as_deref().unwrap_or("")
+            s.selected_id.as_deref().unwrap_or(""),
+            ct
         );
         let _ = js_sys::eval(&js);
     }
@@ -829,6 +845,12 @@ fn CanvasArea() -> Element {
                                     if let Some(engine) = &mut *actx.borrow_mut() {
                                         engine.load_url(&url);
                                     }
+                                    if let Ok(name_val) = js_sys::Reflect::get(&detail, &JsValue::from_str("name")) {
+                                        if let Some(n) = name_val.as_string() {
+                                            s_audio.write().audio_file_name = Some(n);
+                                        }
+                                    }
+                                    s_audio.write().audio_loaded = true;
                                 }
                             }
                         }
