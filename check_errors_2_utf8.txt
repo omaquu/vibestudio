@@ -1,0 +1,216 @@
+﻿cargo :     Checking 
+vibe-studio v0.1.0 (C:\Users\k
+uron\.gemini\antigravity\WorkS
+pace\Vibe-Studio)
+At line:1 char:1
++ cargo check --color never > 
+check_errors_2.txt 2>&1; 
+Get-Content chec ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : 
+    NotSpecified: (    Check  
+  ing vi...ce\Vibe-Studio):   
+ String) [], RemoteExcepti    
+on
+    + FullyQualifiedErrorId : 
+    NativeCommandError
+ 
+error: Failed to parse 
+formatted segment: Expected 
+Ident or Expression
+  --> src\sidebar.rs:67:24
+   |
+67 | ...e: "display: flex; 
+align-items: center; gap: 
+4px; cursor: pointer; 
+flex-grow: 1; min-width: 0; 
+opacity: {if visible { 1.0 } 
+else { 0.35 }};",
+   |       ^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error: Failed to parse 
+formatted segment: Expected 
+Ident or Expression
+   --> src\sidebar.rs:280:44
+    |
+280 | ...e: "display: flex; 
+align-items: center; gap: 
+5px; padding: 6px 8px; 
+cursor: pointer; user-select: 
+none; background: {if 
+is_selected { 
+\"rgba(251,191,36,0.1)\" } 
+else { \"transparent\" }};",
+    |       ^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^
+
+error: Failed to parse 
+formatted segment: Expected 
+Ident or Expression
+  --> src\timeline.rs:48:20
+   |
+48 | ...e: "position: 
+absolute; left: {left_pct}%; 
+width: {width_...or) } else { 
+\"none\".to_string() }};",
+   |       ^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^...^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^
+
+error: Failed to parse 
+formatted segment: Expected 
+Ident or Expression
+  --> src\inspector.rs:47:24
+   |
+47 | ...e: "width: 28px; 
+height: 14px; border-radius: 
+7px; background: {if checked 
+{ \"var(--accent-color)\" } 
+else { 
+\"rgba(255,255,255,0.1)\" }}; 
+display: flex; align-items: 
+center; padding: 0 2px; 
+transition: background 0.2s;",
+   |       ^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^
+
+error[E0308]: mismatched types
+   --> src\inspector.rs:174:73
+    |
+174 | ...                   
+l.position[0] = v;
+    |                       
+-------------   ^ expected 
+`f32`, found `f64`
+    |                       |
+    |                       
+expected due to the type of 
+this binding
+
+error[E0308]: mismatched types
+   --> src\inspector.rs:188:73
+    |
+188 | ...                   
+l.position[1] = v;
+    |                       
+-------------   ^ expected 
+`f32`, found `f64`
+    |                       |
+    |                       
+expected due to the type of 
+this binding
+
+error[E0308]: mismatched types
+   --> src\inspector.rs:202:73
+    |
+202 | ...                   
+l.position[2] = v;
+    |                       
+-------------   ^ expected 
+`f32`, found `f64`
+    |                       |
+    |                       
+expected due to the type of 
+this binding
+
+error[E0599]: no variant or 
+associated item named `Group` 
+found for enum 
+`model::LayerType` in the 
+current scope
+   --> 
+src\inspector.rs:265:131
+    |
+265 | ...                   
+.filter(|l| (l.layer_type == 
+LayerType::Composition || 
+l.layer_type == 
+LayerType::Group) && l.id != 
+layer.id)
+    |                         
+                              
+                              
+                    ^^^^^ 
+variant or associated item 
+not found in 
+`model::LayerType`
+    |
+   ::: src\model.rs:12:1
+    |
+ 12 | pub enum LayerType {
+    | ------------------ 
+variant or associated item 
+`Group` not found for this 
+enum
+
+error[E0308]: mismatched types
+   --> src\inspector.rs:260:82
+    |
+260 | ...                   st
+ate.write().reparent(&id_repar
+ent, new_parent.as_deref());
+    |                         
+            --------          
+     ^^^^^^^^^^^^^^^^^^^^^ 
+expected `Option<String>`, 
+found `Option<&str>`
+    |                         
+            |
+    |                         
+            arguments to this 
+method are incorrect
+    |
+    = note: expected enum `std
+::option::Option<std::string::
+String>`
+               found enum 
+`std::option::Option<&str>`
+note: method defined here
+   --> src\model.rs:319:12
+    |
+319 |     pub fn 
+reparent(&mut self, layer_id: 
+&str, new_parent: 
+Option<String>) {
+    |            ^^^^^^^^     
+                       
+--------------------------
+help: try removing the method 
+call
+    |
+260 -                         
+                    state.writ
+e().reparent(&id_reparent, 
+new_parent.as_deref());
+260 +                         
+                    state.writ
+e().reparent(&id_reparent, 
+new_parent);
+    |
+
+Some errors have detailed 
+explanations: E0308, E0599.
+For more information about an 
+error, try `rustc --explain 
+E0308`.
+error: could not compile 
+`vibe-studio` (bin 
+"vibe-studio") due to 9 
+previous errors
