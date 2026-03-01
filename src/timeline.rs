@@ -487,109 +487,206 @@ pub fn Timeline() -> Element {
                                                 if ws_comps.is_empty() && ws_unbound.is_empty() {
                                                     div { style: "font-size: 9px; color: rgba(255,255,255,0.2); padding: 8px 8px; flex-grow: 1; display: flex; align-items: center;", "Empty workstream" }
                                                 }
-                                                // Flatten descendants for the open workstream
-                                                // We'll collect the comps first, then the unbound items
                                                 {
-                                                    let mut all_ws_children = Vec::new();
-                                                    for c in &ws_comps {
-                                                        all_ws_children.push((c.clone(), true)); // true = is a comp
-                                                        if state.read().is_comp_open(&c.id) {
-                                                            let c_desc = open_comp_children.get(&c.id).cloned().unwrap_or_default();
-                                                            for d in c_desc {
-                                                                all_ws_children.push((d.clone(), false));
-                                                            }
-                                                        }
-                                                    }
-                                                    for u in &ws_unbound {
-                                                        all_ws_children.push((u.clone(), false));
-                                                    }
-
                                                     rsx! {
-                                                        for (desc, is_comp_row) in all_ws_children.into_iter() {
+                                                        // First render compositions as their own rows (with resize handles)
+                                                        for c in ws_comps.iter() {
                                                             {
-                                                                let desc_color = desc.layer_type.color_hex();
-                                                                let desc_selected = selected_id.as_deref() == Some(&*desc.id);
-                                                                let bg = if desc_selected { "rgba(123,97,255,0.15)" } else { "transparent" };
-                                                                let desc_id_sel = desc.id.clone();
-                                                                let desc_id_drag = desc.id.clone();
-                                                                let desc_id_resize_l = desc.id.clone();
-                                                                let desc_id_resize_r = desc.id.clone();
-                                                                let desc_id_toggle = desc.id.clone();
-                                                                let desc_start_time = desc.start_time;
-                                                                // Layer spans full width of ws at proportional horizontal pos
+                                                                let c_color = c.layer_type.color_hex();
+                                                                let c_open = state.read().is_comp_open(&c.id);
+                                                                let c_id_toggle = c.id.clone();
+                                                                let c_id_resize_l = c.id.clone();
+                                                                let c_id_resize_r = c.id.clone();
                                                                 let pps = zoom * 100.0;
-                                                                let layer_px_left = (desc.start_time - ws.start_time).max(0.0) * pps;
-                                                                let layer_px_width = (desc.duration * pps).max(2.0);
-
-                                                                if is_comp_row {
-                                                                    // Render as a collapsible grouping row
-                                                                    let c_open = state.read().is_comp_open(&desc.id);
-                                                                    rsx! {
-                                                                        div {
-                                                                            key: "desc-comp-{desc.id}",
-                                                                            style: "height: 28px; flex-shrink: 0; position: relative; border-bottom: 1px solid rgba(255,255,255,0.03); background: rgba(251,191,36,0.05); display: flex; align-items: center; padding-left: 6px; cursor: pointer; user-select: none;",
-                                                                            onclick: move |_| { state.write().toggle_comp(&desc_id_toggle); },
-                                                                            span { style: "font-size: 10px; color: rgba(255,255,255,0.4); margin-right: 4px;", if c_open { "▾" } else { "▸" } }
-                                                                            span { style: "font-size: 10px; color: #fbbf24; font-weight: 600;", "{desc.name}" }
-                                                                        }
-                                                                    }
-                                                                } else {
-                                                                    rsx! {
-                                                                        div {
-                                                                            key: "desc-{desc.id}",
-                                                                            style: "height: 28px; flex-shrink: 0; position: relative; border-bottom: 1px solid rgba(255,255,255,0.03); background: {bg};",
-                                                                            onclick: move |_| { state.write().selected_id = Some(desc_id_sel.clone()); },
-                                                                            // Track label
-                                                                            div { style: "position: absolute; left: 0; top: 0; bottom: 0; display: flex; align-items: center; padding-left: 12px; font-size: 10px; color: rgba(255,255,255,0.5); pointer-events: none; z-index: 2; background: rgba(11,11,20,0.6); width: 80px; text-overflow: ellipsis; overflow: hidden; white-space: nowrap;",
-                                                                                "{desc.name}"
-                                                                            }
-                                                                            // Clip bar
-                                                                            div { style: "position: absolute; left: calc(80px + {layer_px_left}px); width: {layer_px_width}px; top: 3px; bottom: 3px; background: {desc_color}30; border: 1px solid {desc_color}80; border-radius: 2px; overflow: hidden; min-width: 4px; cursor: grab;",
+                                                                let c_px_left = (c.start_time - ws.start_time).max(0.0) * pps;
+                                                                let c_px_width = (c.duration * pps).max(2.0);
+                                                                rsx! {
+                                                                    div {
+                                                                        key: "comp-row-{c.id}",
+                                                                        style: "height: 28px; flex-shrink: 0; position: relative; border-bottom: 1px solid rgba(255,255,255,0.03); background: rgba(251,191,36,0.05); display: flex; align-items: center; cursor: pointer; user-select: none;",
+                                                                        onclick: move |_| { state.write().toggle_comp(&c_id_toggle); },
+                                                                        // Comp clip bar
+                                                                        div { style: "position: absolute; left: calc(80px + {c_px_left}px); width: {c_px_width}px; top: 3px; bottom: 3px; background: {c_color}20; border: 1px solid {c_color}60; border-radius: 2px; overflow: hidden;",
+                                                                            // Resize handles
+                                                                            div {
+                                                                                style: "position: absolute; left: 0; top: 0; bottom: 0; width: 6px; cursor: ew-resize; background: rgba(255,255,255,0.1); z-index: 10;",
                                                                                 onpointerdown: move |evt| {
-                                                                                    let mut s = state.write();
-                                                                                    s.selected_id = Some(desc_id_drag.clone());
-                                                                                    if s.is_cut_mode {
-                                                                                        let pps = s.timeline_zoom as f64 * 100.0;
-                                                                                        let t_local = evt.element_coordinates().x / pps;
-                                                                                        s.split_layer(&desc_id_drag, desc_start_time + t_local);
-                                                                                        s.is_cut_mode = false;
-                                                                                    } else {
-                                                                                        s.begin_clip_drag(&desc_id_drag, crate::model::ClipDragMode::Move, evt.client_coordinates().x);
-                                                                                    }
+                                                                                    state.write().begin_clip_drag(&c_id_resize_l, crate::model::ClipDragMode::TrimLeft, evt.client_coordinates().x);
                                                                                     evt.stop_propagation();
-                                                                                },
-                                                                                div {
-                                                                                    style: "position: absolute; left: 0; top: 0; bottom: 0; width: 6px; cursor: ew-resize; background: rgba(255,255,255,0.1); z-index: 10;",
-                                                                                    onpointerdown: move |evt| {
-                                                                                        state.write().begin_clip_drag(&desc_id_resize_l, crate::model::ClipDragMode::TrimLeft, evt.client_coordinates().x);
-                                                                                        evt.stop_propagation();
-                                                                                    }
-                                                                                }
-                                                                                div {
-                                                                                    style: "position: absolute; right: 0; top: 0; bottom: 0; width: 6px; cursor: ew-resize; background: rgba(255,255,255,0.1); z-index: 10;",
-                                                                                    onpointerdown: move |evt| {
-                                                                                        state.write().begin_clip_drag(&desc_id_resize_r, crate::model::ClipDragMode::TrimRight, evt.client_coordinates().x);
-                                                                                        evt.stop_propagation();
-                                                                                    }
                                                                                 }
                                                                             }
-                                                                            div { style: "font-size: 9px; color: {desc_color}; padding: 0 3px; line-height: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; pointer-events: none; position: relative; z-index: 5;", "{desc.name}" }
-                                                                                if desc.layer_type == LayerType::Audio {
+                                                                            div {
+                                                                                style: "position: absolute; right: 0; top: 0; bottom: 0; width: 6px; cursor: ew-resize; background: rgba(255,255,255,0.1); z-index: 10;",
+                                                                                onpointerdown: move |evt| {
+                                                                                    state.write().begin_clip_drag(&c_id_resize_r, crate::model::ClipDragMode::TrimRight, evt.client_coordinates().x);
+                                                                                    evt.stop_propagation();
+                                                                                }
+                                                                            }
+                                                                        }
+                                                                        span { style: "font-size: 10px; color: rgba(255,255,255,0.4); margin-left: 6px; margin-right: 4px; z-index: 5; position: relative;", if c_open { "▾" } else { "▸" } }
+                                                                        span { style: "font-size: 10px; color: #fbbf24; font-weight: 600; z-index: 5; position: relative;", "{c.name}" }
+                                                                        span { style: "font-size: 9px; color: rgba(255,255,255,0.3); margin-left: auto; margin-right: 6px; z-index: 5; position: relative;", "{c.duration:.0}s" }
+                                                                    }
+                                                                    // If comp is open, render its children inlined
+                                                                    if c_open {
+                                                                        {
+                                                                            let comp_children = open_comp_children.get(&c.id).cloned().unwrap_or_default();
+                                                                            rsx! {
+                                                                                for cdesc in comp_children.into_iter() {
                                                                                     {
-                                                                                        let wave_id = format!("wavecanvas-{}", desc.id);
-                                                                                        let wave_color = desc_color.to_string();
+                                                                                        let cd_color = cdesc.layer_type.color_hex();
+                                                                                        let cd_selected = selected_id.as_deref() == Some(&*cdesc.id);
+                                                                                        let cd_bg = if cd_selected { "rgba(123,97,255,0.15)" } else { "transparent" };
+                                                                                        let cd_id_sel = cdesc.id.clone();
+                                                                                        let cd_id_drag = cdesc.id.clone();
+                                                                                        let cd_id_rl = cdesc.id.clone();
+                                                                                        let cd_id_rr = cdesc.id.clone();
+                                                                                        let cd_start = cdesc.start_time;
+                                                                                        let cd_px_left = (cdesc.start_time - ws.start_time).max(0.0) * pps;
+                                                                                        let cd_px_width = (cdesc.duration * pps).max(2.0);
                                                                                         rsx! {
-                                                                                            canvas {
-                                                                                                id: "{wave_id}",
-                                                                                                style: "position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0.5; pointer-events: none;",
-                                                                                                "data-wave-color": "{wave_color}",
+                                                                                            div {
+                                                                                                key: "cdesc-{cdesc.id}",
+                                                                                                style: "height: 28px; flex-shrink: 0; position: relative; border-bottom: 1px solid rgba(255,255,255,0.03); background: {cd_bg}; padding-left: 16px;",
+                                                                                                onclick: move |_| { state.write().selected_id = Some(cd_id_sel.clone()); },
+                                                                                                div { style: "position: absolute; left: 0; top: 0; bottom: 0; display: flex; align-items: center; padding-left: 16px; font-size: 10px; color: rgba(255,255,255,0.5); pointer-events: none; z-index: 2; background: rgba(11,11,20,0.6); width: 80px; text-overflow: ellipsis; overflow: hidden; white-space: nowrap;",
+                                                                                                    "{cdesc.name}"
+                                                                                                }
+                                                                                                div { style: "position: absolute; left: calc(80px + {cd_px_left}px); width: {cd_px_width}px; top: 3px; bottom: 3px; background: {cd_color}30; border: 1px solid {cd_color}80; border-radius: 2px; overflow: hidden; min-width: 4px; cursor: grab;",
+                                                                                                    onpointerdown: move |evt| {
+                                                                                                        let mut s = state.write();
+                                                                                                        s.selected_id = Some(cd_id_drag.clone());
+                                                                                                        if s.is_cut_mode {
+                                                                                                            let pps = s.timeline_zoom as f64 * 100.0;
+                                                                                                            let t_local = evt.element_coordinates().x / pps;
+                                                                                                            s.split_layer(&cd_id_drag, cd_start + t_local);
+                                                                                                            s.is_cut_mode = false;
+                                                                                                        } else {
+                                                                                                            s.begin_clip_drag(&cd_id_drag, crate::model::ClipDragMode::Move, evt.client_coordinates().x);
+                                                                                                        }
+                                                                                                        evt.stop_propagation();
+                                                                                                    },
+                                                                                                    div { style: "position: absolute; left: 0; top: 0; bottom: 0; width: 6px; cursor: ew-resize; background: rgba(255,255,255,0.1); z-index: 10;",
+                                                                                                        onpointerdown: move |evt| {
+                                                                                                            state.write().begin_clip_drag(&cd_id_rl, crate::model::ClipDragMode::TrimLeft, evt.client_coordinates().x);
+                                                                                                            evt.stop_propagation();
+                                                                                                        }
+                                                                                                    }
+                                                                                                    div { style: "position: absolute; right: 0; top: 0; bottom: 0; width: 6px; cursor: ew-resize; background: rgba(255,255,255,0.1); z-index: 10;",
+                                                                                                        onpointerdown: move |evt| {
+                                                                                                            state.write().begin_clip_drag(&cd_id_rr, crate::model::ClipDragMode::TrimRight, evt.client_coordinates().x);
+                                                                                                            evt.stop_propagation();
+                                                                                                        }
+                                                                                                    }
+                                                                                                    if cdesc.layer_type == LayerType::Audio {
+                                                                                                        {
+                                                                                                            let wid = format!("wavecanvas-{}", cdesc.id);
+                                                                                                            let wcol = cd_color.to_string();
+                                                                                                            rsx! { canvas { id: "{wid}", style: "position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0.5; pointer-events: none;", "data-wave-color": "{wcol}" } }
+                                                                                                        }
+                                                                                                    }
+                                                                                                }
                                                                                             }
                                                                                         }
                                                                                     }
                                                                                 }
-
                                                                             }
                                                                         }
+                                                                    }
+                                                                }
+                                                            }
+                                                        }
+                                                        // Then render unbound layers grouped into tracks (non-overlapping share row)
+                                                        {
+                                                            // Build tracks: group non-overlapping layers into shared rows
+                                                            let mut tracks: Vec<Vec<Layer>> = Vec::new();
+                                                            let mut sorted_unbound = ws_unbound.clone();
+                                                            sorted_unbound.sort_by(|a, b| a.start_time.partial_cmp(&b.start_time).unwrap_or(std::cmp::Ordering::Equal));
+                                                            for layer in sorted_unbound {
+                                                                let mut placed = false;
+                                                                for track in &mut tracks {
+                                                                    let track_end = track.iter().map(|l| l.start_time + l.duration).fold(0.0_f64, f64::max);
+                                                                    if layer.start_time >= track_end - 0.01 {
+                                                                        track.push(layer.clone());
+                                                                        placed = true;
+                                                                        break;
+                                                                    }
+                                                                }
+                                                                if !placed {
+                                                                    tracks.push(vec![layer.clone()]);
+                                                                }
+                                                            }
+                                                            rsx! {
+                                                                for (track_idx, track_layers) in tracks.into_iter().enumerate() {
+                                                                    {
+                                                                        let first_name = track_layers.first().map(|l| l.name.clone()).unwrap_or_default();
+                                                                        // Choose the first layer's name for the row label (or show multiple names)
+                                                                        let track_label = if track_layers.len() == 1 { first_name } else { format!("{} +{}", first_name, track_layers.len() - 1) };
+                                                                        let any_selected = track_layers.iter().any(|l| selected_id.as_deref() == Some(&*l.id));
+                                                                        let row_bg = if any_selected { "rgba(123,97,255,0.15)" } else { "transparent" };
+                                                                        rsx! {
+                                                                            div {
+                                                                                key: "track-{ws.id}-{track_idx}",
+                                                                                style: "height: 28px; flex-shrink: 0; position: relative; border-bottom: 1px solid rgba(255,255,255,0.03); background: {row_bg};",
+                                                                                // Row label
+                                                                                div { style: "position: absolute; left: 0; top: 0; bottom: 0; display: flex; align-items: center; padding-left: 12px; font-size: 10px; color: rgba(255,255,255,0.5); pointer-events: none; z-index: 2; background: rgba(11,11,20,0.6); width: 80px; text-overflow: ellipsis; overflow: hidden; white-space: nowrap;",
+                                                                                    "{track_label}"
+                                                                                }
+                                                                                // Render each clip in this track
+                                                                                for clip in track_layers.into_iter() {
+                                                                                    {
+                                                                                        let clip_color = clip.layer_type.color_hex();
+                                                                                        let pps = zoom * 100.0;
+                                                                                        let clip_px_left = (clip.start_time - ws.start_time).max(0.0) * pps;
+                                                                                        let clip_px_width = (clip.duration * pps).max(2.0);
+                                                                                        let clip_id_sel = clip.id.clone();
+                                                                                        let clip_id_drag = clip.id.clone();
+                                                                                        let clip_id_rl = clip.id.clone();
+                                                                                        let clip_id_rr = clip.id.clone();
+                                                                                        let clip_start = clip.start_time;
+                                                                                        rsx! {
+                                                                                            div { style: "position: absolute; left: calc(80px + {clip_px_left}px); width: {clip_px_width}px; top: 3px; bottom: 3px; background: {clip_color}30; border: 1px solid {clip_color}80; border-radius: 2px; overflow: hidden; min-width: 4px; cursor: grab; z-index: 3;",
+                                                                                                onclick: move |_| { state.write().selected_id = Some(clip_id_sel.clone()); },
+                                                                                                onpointerdown: move |evt| {
+                                                                                                    let mut s = state.write();
+                                                                                                    s.selected_id = Some(clip_id_drag.clone());
+                                                                                                    if s.is_cut_mode {
+                                                                                                        let pps = s.timeline_zoom as f64 * 100.0;
+                                                                                                        let t_local = evt.element_coordinates().x / pps;
+                                                                                                        s.split_layer(&clip_id_drag, clip_start + t_local);
+                                                                                                        s.is_cut_mode = false;
+                                                                                                    } else {
+                                                                                                        s.begin_clip_drag(&clip_id_drag, crate::model::ClipDragMode::Move, evt.client_coordinates().x);
+                                                                                                    }
+                                                                                                    evt.stop_propagation();
+                                                                                                },
+                                                                                                div { style: "font-size: 9px; color: {clip_color}; padding: 0 3px; line-height: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; pointer-events: none; position: relative; z-index: 5;", "{clip.name}" }
+                                                                                                div { style: "position: absolute; left: 0; top: 0; bottom: 0; width: 6px; cursor: ew-resize; background: rgba(255,255,255,0.1); z-index: 10;",
+                                                                                                    onpointerdown: move |evt| {
+                                                                                                        state.write().begin_clip_drag(&clip_id_rl, crate::model::ClipDragMode::TrimLeft, evt.client_coordinates().x);
+                                                                                                        evt.stop_propagation();
+                                                                                                    }
+                                                                                                }
+                                                                                                div { style: "position: absolute; right: 0; top: 0; bottom: 0; width: 6px; cursor: ew-resize; background: rgba(255,255,255,0.1); z-index: 10;",
+                                                                                                    onpointerdown: move |evt| {
+                                                                                                        state.write().begin_clip_drag(&clip_id_rr, crate::model::ClipDragMode::TrimRight, evt.client_coordinates().x);
+                                                                                                        evt.stop_propagation();
+                                                                                                    }
+                                                                                                }
+                                                                                                if clip.layer_type == LayerType::Audio {
+                                                                                                    {
+                                                                                                        let wid = format!("wavecanvas-{}", clip.id);
+                                                                                                        let wcol = clip_color.to_string();
+                                                                                                        rsx! { canvas { id: "{wid}", style: "position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0.5; pointer-events: none;", "data-wave-color": "{wcol}" } }
+                                                                                                    }
+                                                                                                }
+                                                                                            }
+                                                                                        }
+                                                                                    }
+                                                                                }
+                                                                            }
+                                                                        }
+                                                                    }
                                                                 }
                                                             }
                                                         }

@@ -392,38 +392,6 @@ fn CanvasArea() -> Element {
         ctx.shadowBlur=0; ctx.shadowOffsetX=0; ctx.shadowOffsetY=0;
         break;
       }
-      case 'Image': {
-        if(l.media_url) {
-          if(!window.__vibeImages) window.__vibeImages = {};
-          if(!window.__vibeImages[l.media_url]) {
-            const img = new Image();
-            img.crossOrigin = 'anonymous';
-            img.onload = function() { window.__vibeImagesDirty = true; };
-            img.onerror = function() { window.__vibeImages[l.media_url].error = true; };
-            img.src = l.media_url;
-            window.__vibeImages[l.media_url] = img;
-          }
-          const img = window.__vibeImages[l.media_url];
-          if(img && img.complete && img.naturalWidth && !img.error) {
-            // Draw centered
-            const w = img.naturalWidth * sc;
-            const h = img.naturalHeight * sc;
-            ctx.drawImage(img, cx - w/2, cy - h/2, w, h);
-          } else {
-             // Loading state
-            ctx.fillStyle=c+'22'; ctx.fillRect(cx-50*sc, cy-50*sc, 100*sc, 100*sc);
-            ctx.strokeStyle=c+'88'; ctx.strokeRect(cx-50*sc, cy-50*sc, 100*sc, 100*sc);
-            ctx.fillStyle='#fff'; ctx.font='10px sans-serif'; ctx.textAlign='center';
-            ctx.fillText('Loading img...', cx, cy);
-          }
-        } else {
-            ctx.fillStyle=c+'22'; ctx.fillRect(cx-50*sc, cy-50*sc, 100*sc, 100*sc);
-            ctx.strokeStyle=c; ctx.strokeRect(cx-50*sc, cy-50*sc, 100*sc, 100*sc);
-            ctx.fillStyle='#fff'; ctx.font=`${Math.round(12*sc)}px sans-serif`; ctx.textAlign='center';
-            ctx.fillText('No Image URL', cx, cy);
-        }
-        break;
-      }
       case 'ChromaticAberration': {
         const amt = (l._abs_op || 1) * 6 * sc;
         if(amt > 0.1 && window.__vibeOffscreenCanvas) {
@@ -696,24 +664,27 @@ fn CanvasArea() -> Element {
     layers.forEach(l=>{
         if(!l._abs_vis) return;
         if(l.type === 'Composition' || l.type === 'Workstream') return;
-        // Check own time range
-        const local_ct = playbackTime - (l.start_time || 0);
+        
+        // Compute parent-relative playback time by walking up the parent chain
+        let effectiveTime = playbackTime;
+        let p = map[l.parent];
+        while(p) {
+            effectiveTime -= (p.start_time || 0);
+            // Check parent is active at this time
+            if(p.type === 'Composition' || p.type === 'Workstream') {
+                if(p.duration !== undefined && p.duration > 0) {
+                    if(effectiveTime < -0.001 || effectiveTime > p.duration + 0.001) return;
+                }
+            }
+            p = map[p.parent];
+        }
+        
+        // Check own time range using parent-relative time
+        const local_ct = effectiveTime - (l.start_time || 0);
         if(l.duration !== undefined && l.duration > 0) {
             if(local_ct < -0.001 || local_ct > l.duration + 0.001) return;
         }
-        // Also check parent composition active at current time
-        if(l.parent) {
-            let p = map[l.parent];
-            while(p) {
-                if(p.type === 'Composition' || p.type === 'Workstream') {
-                    const p_local = playbackTime - (p.start_time || 0);
-                    if(p.duration !== undefined && p.duration > 0) {
-                        if(p_local < -0.001 || p_local > p.duration + 0.001) return;
-                    }
-                }
-                p = map[p.parent];
-            }
-        }
+        
         _visibleCount++;
         drawLayer(ctx, l, globalTime, W, H);
     });

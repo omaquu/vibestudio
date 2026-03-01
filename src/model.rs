@@ -503,13 +503,8 @@ impl AppState {
         self.layers.iter()
             .filter(|l| l.layer_type != LayerType::Composition && l.layer_type != LayerType::Workstream)
             .filter(|l| {
-                if l.parent_id.is_none() { return true; }
-                if let Some(pid) = &l.parent_id {
-                    if let Some(p) = self.layers.iter().find(|parent| parent.id == *pid) {
-                        return p.layer_type == LayerType::Workstream;
-                    }
-                }
-                false
+                // Truly unbound = no parent at all
+                l.parent_id.is_none()
             })
             .collect()
     }
