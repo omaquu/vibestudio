@@ -422,6 +422,26 @@ pub fn Timeline() -> Element {
                                         key: "ws-{ws.id}",
                                         style: "position: absolute; left: {ws_pct_left}%; width: {ws_pct_width}%; top: 0; bottom: 0; display: flex; flex-direction: column; border-right: {ws_border}; background: rgba(255,255,255,0.01); overflow: hidden; min-height: 0;",
 
+                                        // Second-mark grid lines
+                                        {
+                                            let ws_dur = ws.duration;
+                                            let grid_interval = if ws_dur > 120.0 { 10.0 } else if ws_dur > 30.0 { 5.0 } else { 1.0 };
+                                            let grid_count = (ws_dur / grid_interval).ceil() as usize;
+                                            rsx! {
+                                                for gi in 1..grid_count {
+                                                    {
+                                                        let gpct = ((gi as f64) * grid_interval / ws_dur) * 100.0;
+                                                        rsx! {
+                                                            div {
+                                                                key: "grid-{ws.id}-{gi}",
+                                                                style: "position: absolute; left: {gpct}%; top: 0; bottom: 0; width: 1px; background: rgba(255,255,255,0.04); pointer-events: none; z-index: 0;",
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+
                                         // Workstream header
                                         div {
                                             style: "height: 28px; flex-shrink: 0; background: rgba(59,130,246,0.1); border-bottom: 1px solid rgba(59,130,246,0.2); display: flex; align-items: center; gap: 4px; padding: 0 6px; cursor: pointer; user-select: none; position: relative;",
@@ -635,11 +655,13 @@ pub fn Timeline() -> Element {
                                                 div { style: "font-size: 10px; color: #fff; padding: 0 4px; line-height: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; pointer-events: none; position: relative; z-index: 5;", "{layer.name} ({layer.duration:.0}s)" }
                                                 if layer.layer_type == LayerType::Audio {
                                                     {
-                                                        let svg_html = r#"<svg width="100%" height="100%" preserveAspectRatio="none"><defs><pattern id="wave-{id}" x="0" y="0" width="40" height="20" patternUnits="userSpaceOnUse"><path d="M0,10 L2,5 L4,15 L6,8 L8,18 L10,6 L12,14 L14,9 L16,11 L18,4 L20,16 L22,7 L24,19 L26,8 L28,12 L30,5 L32,15 L34,7 L36,18 L38,10 L40,10" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></pattern></defs><rect width="100%" height="100%" fill="url(#wave-{id})" /></svg>"#.replace("{id}", &layer.id);
+                                                        let wave_id2 = format!("wavecanvas-{}", layer.id);
+                                                        let wave_color2 = layer_color.to_string();
                                                         rsx! {
-                                                            div {
-                                                                style: "position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0.35; pointer-events: none; color: {layer_color};",
-                                                                dangerous_inner_html: "{svg_html}",
+                                                            canvas {
+                                                                id: "{wave_id2}",
+                                                                style: "position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0.5; pointer-events: none;",
+                                                                "data-wave-color": "{wave_color2}",
                                                             }
                                                         }
                                                     }

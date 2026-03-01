@@ -625,7 +625,14 @@ pub fn Sidebar() -> Element {
                     button {
                         style: "flex: 1; font-size: 9px; padding: 6px 0; border: 1px solid rgba(59,130,246,0.5); border-radius: 4px; background: rgba(59,130,246,0.1); color: #3b82f6; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 4px; font-weight: 600;",
                         onclick: move |_| {
-                            state.write().add_workstream();
+                            // Prompt user for workstream duration
+                            let dur: f64 = js_sys::eval("parseFloat(prompt('Workstream duration (seconds):', '30')) || 30")
+                                .ok()
+                                .and_then(|v| v.as_f64())
+                                .unwrap_or(30.0);
+                            if dur > 0.0 {
+                                state.write().add_workstream_with_duration(dur);
+                            }
                         },
                         span { style: "font-size: 10px;", "🌊+" }
                         "WS"

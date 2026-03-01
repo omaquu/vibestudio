@@ -563,6 +563,16 @@ impl AppState {
                     // Default child to match parent's start and duration
                     layer.start_time = parent.start_time;
                     layer.duration = parent.duration;
+                } else if parent.layer_type == LayerType::Workstream {
+                    // Stagger: place new layer after the last child in this workstream
+                    let max_end = self.layers.iter()
+                        .filter(|l| l.parent_id.as_deref() == Some(&parent.id))
+                        .map(|l| l.start_time + l.duration)
+                        .fold(parent.start_time, f64::max);
+                    layer.start_time = max_end;
+                    if layer.start_time + layer.duration > parent.start_time + parent.duration {
+                        layer.duration = (parent.start_time + parent.duration - layer.start_time).max(0.5);
+                    }
                 } else {
                     layer.start_time = parent.start_time;
                     if layer.start_time + layer.duration > parent.start_time + parent.duration {
@@ -570,6 +580,10 @@ impl AppState {
                     }
                 }
             }
+        }
+        // Apply snap if enabled
+        if self.snap_to_grid {
+            layer.start_time = (layer.start_time * 10.0).round() / 10.0;
         }
         let id = layer.id.clone();
         self.layers.push(layer);
@@ -666,14 +680,17 @@ impl AppState {
                 let first_dur = time - original.start_time;
                 let second_dur = original.duration - first_dur;
                 
+                let orig_name = original.name.clone();
                 original.duration = first_dur;
+                original.name = format!("{} (A)", orig_name);
                 self.layers[i] = original.clone();
                 
                 let mut second_half = original.clone();
                 second_half.id = gen_id();
                 second_half.start_time = time;
                 second_half.duration = second_dur;
-                second_half.name = format!("{} (copy)", second_half.name);
+                second_half.name = format!("{} (B)", orig_name);
+                // parent_id is preserved from clone
                 self.layers.insert(i + 1, second_half);
             }
         }
@@ -899,11 +916,35 @@ impl AppState {
     }
 
     pub fn add_workstream(&mut self) {
-        // Place new workstream at t=0 as a parallel track
+        self.add_workstream_with_duration(30.0);
+    }
+
+    pub fn add_workstream_with_duration(&mut self, duration: f64) {
         let ws_count = self.root_workstreams().len() + 1;
-        let ws = Layer::new_workstream(&format!("Workstream {}", ws_count));
+        let mut ws = Layer::new_workstream(&format!("Workstream {}", ws_count));
+        ws.duration = duration;
         let ws_id = ws.id.clone();
         self.layers.push(ws);
         self.open_comps.push(ws_id);
+    }
+
+    /// Returns the next active time if `from` falls in a gap between workstreams.
+    /// If `from` is inside a workstream, returns `from` unchanged.
+    pub fn next_active_time(&self, from: f64) -> f64 {
+        let workstreams = self.root_workstreams();
+        // Check if we're inside any workstream
+        for ws in &workstreams {
+            if from >= ws.start_time && from <= ws.start_time + ws.duration {
+                return from; // inside a workstream, no skip
+            }
+        }
+        // We're in a gap — find the nearest workstream start after `from`
+        let mut nearest = f64::MAX;
+        for ws in &workstreams {
+            if ws.start_time > from && ws.start_time < nearest {
+                nearest = ws.start_time;
+            }
+        }
+        if nearest < f64::MAX { nearest } else { from }
     }
 }

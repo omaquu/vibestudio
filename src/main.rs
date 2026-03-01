@@ -236,6 +236,47 @@ fn CanvasArea() -> Element {
     ctx.translate(-cx, -cy);
     
     switch(l.type) {
+      case 'Image':
+      case 'Video': {
+        // Render media via cached HTMLImageElement / HTMLVideoElement
+        if(!window.__vibeMediaCache) window.__vibeMediaCache = {};
+        const url = l.media_url;
+        if(url) {
+            if(!window.__vibeMediaCache[url]) {
+                if(l.type === 'Video') {
+                    const vid = document.createElement('video');
+                    vid.src = url; vid.crossOrigin = 'anonymous'; vid.muted = true; vid.loop = true;
+                    vid.play().catch(()=>{});
+                    window.__vibeMediaCache[url] = vid;
+                } else {
+                    const img = new Image();
+                    img.src = url; img.crossOrigin = 'anonymous';
+                    window.__vibeMediaCache[url] = img;
+                }
+            }
+            const media = window.__vibeMediaCache[url];
+            if(media && (media.complete || media.readyState >= 2)) {
+                const mw = media.videoWidth || media.naturalWidth || media.width || 200;
+                const mh = media.videoHeight || media.naturalHeight || media.height || 150;
+                const aspect = mw / mh;
+                let dw = W * sc * 0.8;
+                let dh = dw / aspect;
+                if(dh > H * 0.9) { dh = H * 0.9; dw = dh * aspect; }
+                ctx.drawImage(media, cx - dw/2, cy - dh/2, dw, dh);
+            }
+        } else {
+            // No media loaded yet — show placeholder
+            ctx.fillStyle = c + '30';
+            ctx.fillRect(cx - 60*sc, cy - 40*sc, 120*sc, 80*sc);
+            ctx.strokeStyle = c; ctx.lineWidth = 2;
+            ctx.strokeRect(cx - 60*sc, cy - 40*sc, 120*sc, 80*sc);
+            ctx.fillStyle = c;
+            ctx.font = `${Math.round(10*sc)}px system-ui`;
+            ctx.textAlign = 'center';
+            ctx.fillText(l.type === 'Image' ? '🖼 Image' : '🎬 Video', cx, cy);
+        }
+        break;
+      }
       case 'SpectrumCircle': {
         const r = 70*sc*reactMult, bars = 64;
         for(let i=0;i<bars;i++){
@@ -765,24 +806,76 @@ fn CanvasArea() -> Element {
         ctx.fillRect(0, 0, W, H);
     }
     // ── Waveform Canvases on Timeline ──
+    if(!window.__vibeWaveformCache) window.__vibeWaveformCache = {};
     document.querySelectorAll('canvas[id^="wavecanvas-"]').forEach(wc => {
         const wCtx = wc.getContext('2d');
         const wW = wc.width = wc.offsetWidth || 200;
         const wH = wc.height = wc.offsetHeight || 22;
         wCtx.clearRect(0, 0, wW, wH);
         const wColor = wc.getAttribute('data-wave-color') || '#34d399';
-        const tDom = window.__vibeTimeDomain || [];
-        wCtx.beginPath();
-        const len = tDom.length > 0 ? tDom.length : 100;
-        for(let i = 0; i < len; i++) {
-            const x = (i / (len - 1 || 1)) * wW;
-            const val = tDom.length > 0 ? ((tDom[i % tDom.length] - 128) / 128) : Math.sin(i * 0.12 + (window.__vibeTime || 0)) * 0.5;
-            const y = wH / 2 + val * (wH * 0.4);
-            i === 0 ? wCtx.moveTo(x, y) : wCtx.lineTo(x, y);
+        
+        // Extract layer ID from canvas id: "wavecanvas-<layerId>"
+        const layerId = wc.id.replace('wavecanvas-', '');
+        
+        // Find matching layer to get its media_url
+        const audioLayer = layers.find(l => l.id === layerId);
+        const mediaUrl = audioLayer ? audioLayer.media_url : null;
+        
+        // If we have a URL, try to decode and cache the waveform
+        if(mediaUrl && !window.__vibeWaveformCache[layerId] && !window.__vibeWaveformCache['_loading_' + layerId]) {
+            window.__vibeWaveformCache['_loading_' + layerId] = true;
+            fetch(mediaUrl)
+                .then(r => r.arrayBuffer())
+                .then(buf => {
+                    const actx = new (window.AudioContext || window.webkitAudioContext)();
+                    return actx.decodeAudioData(buf);
+                })
+                .then(decoded => {
+                    const raw = decoded.getChannelData(0);
+                    const samples = 500;
+                    const step = Math.floor(raw.length / samples) || 1;
+                    const waveData = [];
+                    for(let i = 0; i < samples; i++) {
+                        let sum = 0, count = 0;
+                        for(let j = i * step; j < (i+1) * step && j < raw.length; j++) {
+                            sum += Math.abs(raw[j]);
+                            count++;
+                        }
+                        waveData.push(count > 0 ? sum / count : 0);
+                    }
+                    window.__vibeWaveformCache[layerId] = waveData;
+                    delete window.__vibeWaveformCache['_loading_' + layerId];
+                })
+                .catch(() => { delete window.__vibeWaveformCache['_loading_' + layerId]; });
         }
-        wCtx.strokeStyle = wColor;
-        wCtx.lineWidth = 1.5;
-        wCtx.stroke();
+        
+        // Draw from cache or fallback to sine placeholder
+        const cached = window.__vibeWaveformCache[layerId];
+        wCtx.beginPath();
+        if(cached && cached.length > 0) {
+            const len = cached.length;
+            for(let i = 0; i < len; i++) {
+                const x = (i / (len - 1)) * wW;
+                const barH = cached[i] * wH * 0.8;
+                wCtx.moveTo(x, wH/2 - barH);
+                wCtx.lineTo(x, wH/2 + barH);
+            }
+            wCtx.strokeStyle = wColor;
+            wCtx.lineWidth = 1;
+            wCtx.stroke();
+        } else {
+            // Animated sine placeholder while loading
+            const len = 100;
+            for(let i = 0; i < len; i++) {
+                const x = (i / (len - 1)) * wW;
+                const val = Math.sin(i * 0.12 + (window.__vibeTime || 0)) * 0.5;
+                const y = wH / 2 + val * (wH * 0.4);
+                i === 0 ? wCtx.moveTo(x, y) : wCtx.lineTo(x, y);
+            }
+            wCtx.strokeStyle = wColor;
+            wCtx.lineWidth = 1.5;
+            wCtx.stroke();
+        }
     });
 
     // ── Mini Preview Canvas for AddItemModal ──
@@ -815,6 +908,39 @@ fn CanvasArea() -> Element {
     requestAnimationFrame(render);
   }
   requestAnimationFrame(render);
+
+  // ── Waveform Cache ──
+  if(!window.__vibeWaveformCache) window.__vibeWaveformCache = {};
+
+  // ── Middle-Click Pan Handler ──
+  if(!window.__vibePanSetup) {
+    window.__vibePanSetup = true;
+    let panActive = false, panStartX = 0, panStartScroll = 0;
+    document.addEventListener('pointerdown', (e) => {
+        if(e.button !== 1) return; // Middle button only
+        const ta = e.target.closest('.timeline-track-area');
+        if(!ta) return;
+        e.preventDefault();
+        panActive = true;
+        panStartX = e.clientX;
+        panStartScroll = ta.scrollLeft;
+        ta.setPointerCapture(e.pointerId);
+    });
+    document.addEventListener('pointermove', (e) => {
+        if(!panActive) return;
+        const ta = document.querySelector('.timeline-track-area');
+        if(!ta) return;
+        ta.scrollLeft = panStartScroll - (e.clientX - panStartX);
+    });
+    document.addEventListener('pointerup', (e) => {
+        if(e.button !== 1) return;
+        panActive = false;
+    });
+    // Prevent context menu on middle click in timeline
+    document.addEventListener('auxclick', (e) => {
+        if(e.button === 1 && e.target.closest('.timeline-track-area')) e.preventDefault();
+    });
+  }
 })();
         "#);
     });
@@ -1201,7 +1327,9 @@ fn App() -> Element {
                             }
                         }
                     } else {
-                        s.current_time = next;
+                        // Gap-skip: if current time is in a gap between workstreams, jump to next
+                        let skipped = s.next_active_time(next);
+                        s.current_time = skipped;
                     }
                 }
             }
