@@ -116,13 +116,18 @@ fn AddItemModal() -> Element {
                     style: "flex: 1; background: rgba(0,0,0,0.2); display: flex; flex-direction: column; justify-content: center; align-items: center; padding: 24px; text-align: center;",
                     if let Some(lt) = hovered() {
                         div {
-                            style: "display: flex; flex-direction: column; align-items: center; gap: 16px; animation: 0.2s ease-in fade-in;",
-                            div {
-                                style: "width: 80px; height: 80px; border-radius: 20px; background: {lt.color_hex()}22; border: 2px solid {lt.color_hex()}66; display: flex; align-items: center; justify-content: center; font-size: 40px; box-shadow: 0 0 30px {lt.color_hex()}44;",
-                                "{lt.icon()}"
+                            style: "display: flex; flex-direction: column; align-items: center; gap: 12px; animation: 0.2s ease-in fade-in;",
+                            // Live mini-canvas preview
+                            canvas {
+                                id: "vibe-effect-preview-canvas",
+                                width: "200",
+                                height: "140",
+                                style: "width: 200px; height: 140px; border-radius: 12px; background: #08080f; border: 1px solid {lt.color_hex()}44;",
+                                "data-effect-type": "{lt:?}",
+                                "data-effect-color": "{lt.color_hex()}",
                             }
                             h3 { style: "color: #fff; margin: 0; font-size: 16px; font-weight: 600;", "{lt.label()}" }
-                            p { style: "color: rgba(255,255,255,0.6); font-size: 13px; line-height: 1.5; margin: 0;", "{lt.description()}" }
+                            p { style: "color: rgba(255,255,255,0.6); font-size: 12px; line-height: 1.4; margin: 0;", "{lt.description()}" }
                         }
                     } else {
                         div {
@@ -474,6 +479,23 @@ fn CanvasArea() -> Element {
         ctx.globalCompositeOperation = 'source-over';
         break;
       }
+      case 'CameraShake': {
+        const shakeAmt = (l._abs_op || 1) * 12 * sc * reactMult;
+        const shakeX = (Math.random() - 0.5) * shakeAmt;
+        const shakeY = (Math.random() - 0.5) * shakeAmt;
+        ctx.translate(shakeX, shakeY);
+        // Draw a shake indicator
+        ctx.strokeStyle = c + '60';
+        ctx.lineWidth = 2;
+        ctx.setLineDash([4, 4]);
+        ctx.strokeRect(cx - 60*sc + shakeX, cy - 40*sc + shakeY, 120*sc, 80*sc);
+        ctx.setLineDash([]);
+        ctx.fillStyle = c;
+        ctx.font = `${Math.round(10*sc)}px system-ui`;
+        ctx.textAlign = 'center';
+        ctx.fillText('SHAKE', cx + shakeX, cy + shakeY);
+        break;
+      }
       default: {
         ctx.beginPath(); ctx.arc(cx,cy,32*sc,0,Math.PI*2);
         ctx.fillStyle=c+'40'; ctx.fill();
@@ -628,26 +650,31 @@ fn CanvasArea() -> Element {
     });
 
     let _visibleCount = 0;
+    const globalTime = window.__vibeTime || 0;
+    const playbackTime = window.__vibeCurrentTime !== undefined ? window.__vibeCurrentTime : globalTime;
     layers.forEach(l=>{
         if(!l._abs_vis) return;
         if(l.type === 'Composition' || l.type === 'Workstream') return;
-        const ct = window.__vibeCurrentTime !== undefined ? window.__vibeCurrentTime : window.__vibeTime;
         // Check own time range
-        const local_ct = ct - (l.start_time || 0);
-        if(local_ct < -0.001 || local_ct > (l.duration || 999999) + 0.001) return;
+        const local_ct = playbackTime - (l.start_time || 0);
+        if(l.duration !== undefined && l.duration > 0) {
+            if(local_ct < -0.001 || local_ct > l.duration + 0.001) return;
+        }
         // Also check parent composition active at current time
         if(l.parent) {
             let p = map[l.parent];
             while(p) {
                 if(p.type === 'Composition' || p.type === 'Workstream') {
-                    const p_local = ct - (p.start_time || 0);
-                    if(p_local < -0.001 || p_local > (p.duration || 999999) + 0.001) return;
+                    const p_local = playbackTime - (p.start_time || 0);
+                    if(p.duration !== undefined && p.duration > 0) {
+                        if(p_local < -0.001 || p_local > p.duration + 0.001) return;
+                    }
                 }
                 p = map[p.parent];
             }
         }
         _visibleCount++;
-        drawLayer(ctx, l, window.__vibeTime, W, H);
+        drawLayer(ctx, l, globalTime, W, H);
     });
     
     if(_visibleCount===0){
@@ -678,13 +705,16 @@ fn CanvasArea() -> Element {
         }
         player.el.volume = (al._abs_op !== undefined ? al._abs_op : 1.0) * masterVol;
         
-        const ct = window.__vibeCurrentTime !== undefined ? window.__vibeCurrentTime : window.__vibeTime;
-        const local_ct = ct - (al.start_time || 0);
-        const inRange = local_ct >= -0.05 && local_ct <= (al.duration || 999999) + 0.05;
+        const ct2 = window.__vibeCurrentTime !== undefined ? window.__vibeCurrentTime : window.__vibeTime;
+        const local_ct2 = ct2 - (al.start_time || 0);
+        const layerDur = al.duration !== undefined && al.duration > 0 ? al.duration : 999999;
+        const inRange = local_ct2 >= -0.05 && local_ct2 <= layerDur + 0.05;
         
         if(isPlaying && inRange) {
-            if(Math.abs(player.el.currentTime - local_ct) > 0.3) {
-                player.el.currentTime = Math.max(0, local_ct);
+            // Clamp currentTime so audio doesn't play beyond trimmed duration
+            const clampedTime = Math.min(Math.max(0, local_ct2), layerDur);
+            if(Math.abs(player.el.currentTime - clampedTime) > 0.3) {
+                player.el.currentTime = clampedTime;
             }
             if(player.el.paused) player.el.play().catch(()=>{});
         } else {
@@ -734,6 +764,54 @@ fn CanvasArea() -> Element {
         ctx.fillStyle = vGrad;
         ctx.fillRect(0, 0, W, H);
     }
+    // ── Waveform Canvases on Timeline ──
+    document.querySelectorAll('canvas[id^="wavecanvas-"]').forEach(wc => {
+        const wCtx = wc.getContext('2d');
+        const wW = wc.width = wc.offsetWidth || 200;
+        const wH = wc.height = wc.offsetHeight || 22;
+        wCtx.clearRect(0, 0, wW, wH);
+        const wColor = wc.getAttribute('data-wave-color') || '#34d399';
+        const tDom = window.__vibeTimeDomain || [];
+        wCtx.beginPath();
+        const len = tDom.length > 0 ? tDom.length : 100;
+        for(let i = 0; i < len; i++) {
+            const x = (i / (len - 1 || 1)) * wW;
+            const val = tDom.length > 0 ? ((tDom[i % tDom.length] - 128) / 128) : Math.sin(i * 0.12 + (window.__vibeTime || 0)) * 0.5;
+            const y = wH / 2 + val * (wH * 0.4);
+            i === 0 ? wCtx.moveTo(x, y) : wCtx.lineTo(x, y);
+        }
+        wCtx.strokeStyle = wColor;
+        wCtx.lineWidth = 1.5;
+        wCtx.stroke();
+    });
+
+    // ── Mini Preview Canvas for AddItemModal ──
+    const miniPreview = document.getElementById('vibe-effect-preview-canvas');
+    if(miniPreview) {
+        const mCtx = miniPreview.getContext('2d');
+        const mW = miniPreview.width;
+        const mH = miniPreview.height;
+        mCtx.fillStyle = '#08080f';
+        mCtx.fillRect(0, 0, mW, mH);
+        const effectType = miniPreview.getAttribute('data-effect-type');
+        const effectColor = miniPreview.getAttribute('data-effect-color') || '#7b61ff';
+        if(effectType) {
+            const demoLayer = {
+                type: effectType,
+                color: effectColor,
+                _abs_x: 0, _abs_y: 0, _abs_sc: 1, _abs_op: 1, _abs_rot: 0, _abs_vis: true,
+                pos_x: 0, pos_y: 0, scale: 0.6, opacity: 1, rot: 0,
+                audio_react: 'None', visible: true, dir: 1,
+                flip_x: false, flip_y: false, skew_x: 0, skew_y: 0,
+                text_str: 'DEMO', text_size: 28, text_color: '#ffffff',
+                text_stroke: '#000000', text_stroke_w: 2,
+                text_shadow: 'rgba(0,0,0,0.8)', text_shadow_b: 8,
+                perspective: [0, 0]
+            };
+            drawLayer(mCtx, demoLayer, window.__vibeTime || 0, mW, mH);
+        }
+    }
+
     requestAnimationFrame(render);
   }
   requestAnimationFrame(render);
@@ -892,13 +970,25 @@ fn CanvasArea() -> Element {
                         if let Ok(id_val) = js_sys::Reflect::get(&detail, &JsValue::from_str("id")) {
                             if let Ok(url_val) = js_sys::Reflect::get(&detail, &JsValue::from_str("url")) {
                                 if let (Some(id), Some(url)) = (id_val.as_string(), url_val.as_string()) {
-                                    if let Some(l) = s_audio.write().layers.iter_mut().find(|l| l.id == id) {
-                                        l.media_url = Some(url.clone());
-                                        if let Ok(dur_val) = js_sys::Reflect::get(&detail, &JsValue::from_str("duration")) {
-                                            if let Some(dur) = dur_val.as_f64() {
-                                                l.duration = dur;
+                                    let mut parent_to_expand: Option<(String, f64)> = None;
+                                    {
+                                        let mut sw = s_audio.write();
+                                        if let Some(l) = sw.layers.iter_mut().find(|l| l.id == id) {
+                                            l.media_url = Some(url.clone());
+                                            if let Ok(dur_val) = js_sys::Reflect::get(&detail, &JsValue::from_str("duration")) {
+                                                if let Some(dur) = dur_val.as_f64() {
+                                                    l.duration = dur;
+                                                    // Store parent expansion info
+                                                    if let Some(pid) = l.parent_id.clone() {
+                                                        parent_to_expand = Some((pid, l.start_time + dur));
+                                                    }
+                                                }
                                             }
                                         }
+                                    }
+                                    // Expand parent composition to fit audio duration
+                                    if let Some((pid, child_end)) = parent_to_expand {
+                                        s_audio.write().expand_parent_duration(&pid, child_end);
                                     }
                                     if let Some(engine) = &mut *actx.borrow_mut() {
                                         engine.load_url(&url);

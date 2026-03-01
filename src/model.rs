@@ -41,6 +41,7 @@ pub enum LayerType {
     VhsEffect,
     GlitchPost,
     Sharpening,
+    CameraShake,
 }
 
 impl LayerType {
@@ -68,6 +69,7 @@ impl LayerType {
             Self::VhsEffect => "VHS Effect",
             Self::GlitchPost => "Glitch Post",
             Self::Sharpening => "Sharpening",
+            Self::CameraShake => "Camera Shake",
         }
     }
 
@@ -95,6 +97,7 @@ impl LayerType {
             Self::VhsEffect => "#10b981",
             Self::GlitchPost => "#8b5cf6",
             Self::Sharpening => "#eab308",
+            Self::CameraShake => "#ff6b6b",
         }
     }
 
@@ -108,6 +111,7 @@ impl LayerType {
             Self::Audio => "🎵",
             Self::Waveform => "📊",
             Self::ChromaticAberration | Self::ColorCorrection | Self::FilmGrain | Self::VhsEffect | Self::GlitchPost | Self::Sharpening => "🪄",
+            Self::CameraShake => "📳",
             _ => "✨",
         }
     }
@@ -135,6 +139,7 @@ impl LayerType {
             LayerType::VhsEffect,
             LayerType::GlitchPost,
             LayerType::Sharpening,
+            LayerType::CameraShake,
         ]
     }
 
@@ -162,6 +167,7 @@ impl LayerType {
             Self::VhsEffect => "Retro CRT monitor scanlines effect.",
             Self::GlitchPost => "Full-screen digital tearing.",
             Self::Sharpening => "Contrast and detail enhancer.",
+            Self::CameraShake => "Trembling camera effect reactive to audio.",
         }
     }
 }
@@ -893,11 +899,9 @@ impl AppState {
     }
 
     pub fn add_workstream(&mut self) {
-        // Place new workstream after all existing content
-        let max_end = self.timeline_duration();
+        // Place new workstream at t=0 as a parallel track
         let ws_count = self.root_workstreams().len() + 1;
-        let mut ws = Layer::new_workstream(&format!("Workstream {}", ws_count));
-        ws.start_time = max_end;
+        let ws = Layer::new_workstream(&format!("Workstream {}", ws_count));
         let ws_id = ws.id.clone();
         self.layers.push(ws);
         self.open_comps.push(ws_id);

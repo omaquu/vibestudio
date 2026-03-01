@@ -556,11 +556,13 @@ pub fn Timeline() -> Element {
                                                                             div { style: "font-size: 9px; color: {desc_color}; padding: 0 3px; line-height: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; pointer-events: none; position: relative; z-index: 5;", "{desc.name}" }
                                                                                 if desc.layer_type == LayerType::Audio {
                                                                                     {
-                                                                                        let svg_html = r#"<svg width="100%" height="100%" preserveAspectRatio="none"><defs><pattern id="wave-{id}" x="0" y="0" width="40" height="20" patternUnits="userSpaceOnUse"><path d="M0,10 L2,5 L4,15 L6,8 L8,18 L10,6 L12,14 L14,9 L16,11 L18,4 L20,16 L22,7 L24,19 L26,8 L28,12 L30,5 L32,15 L34,7 L36,18 L38,10 L40,10" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></pattern></defs><rect width="100%" height="100%" fill="url(#wave-{id})" /></svg>"#.replace("{id}", &desc.id);
+                                                                                        let wave_id = format!("wavecanvas-{}", desc.id);
+                                                                                        let wave_color = desc_color.to_string();
                                                                                         rsx! {
-                                                                                            div {
-                                                                                                style: "position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0.35; pointer-events: none; color: {desc_color};",
-                                                                                                dangerous_inner_html: "{svg_html}",
+                                                                                            canvas {
+                                                                                                id: "{wave_id}",
+                                                                                                style: "position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0.5; pointer-events: none;",
+                                                                                                "data-wave-color": "{wave_color}",
                                                                                             }
                                                                                         }
                                                                                     }

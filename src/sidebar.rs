@@ -231,7 +231,7 @@ fn LayerRow(
 // ─── Recursive Layer Tree ─────────────────────────────────────────────────────
 #[component]
 pub fn LayerTree(parent_id: Option<String>, depth: usize, exclude_comps: Option<bool>) -> Element {
-    let state = use_context::<Signal<AppState>>();
+    let mut state = use_context::<Signal<AppState>>();
     let s = state.read();
     let skip_comps = exclude_comps.unwrap_or(false);
 
@@ -263,12 +263,36 @@ pub fn LayerTree(parent_id: Option<String>, depth: usize, exclude_comps: Option<
                             depth: depth,
                         }
 
-                        // Recurse into children
+                        // Recurse into children — unbound layers default collapsed
                         if has_kids {
-                            div { class: "nested-children",
-                                LayerTree {
-                                    parent_id: Some(child.id.clone()),
-                                    depth: depth + 1,
+                            {
+                                let toggle_id = child.id.clone();
+                                let is_comp_or_ws = child.layer_type == LayerType::Composition || child.layer_type == LayerType::Workstream;
+                                let is_expanded = if is_comp_or_ws {
+                                    // Compositions/Workstreams use their existing open state
+                                    s.is_comp_open(&child.id)
+                                } else {
+                                    // Other layers default collapsed; must be explicitly opened
+                                    s.is_comp_open(&child.id)
+                                };
+                                rsx! {
+                                    if !is_comp_or_ws {
+                                        div {
+                                            style: "padding-left: {4 + depth * 16}px; cursor: pointer; font-size: 9px; color: rgba(255,255,255,0.35); user-select: none; padding: 1px 0 1px {4 + depth * 16}px;",
+                                            onclick: move |_| {
+                                                state.write().toggle_comp(&toggle_id);
+                                            },
+                                            if is_expanded { "▾ children" } else { "▸ children" }
+                                        }
+                                    }
+                                    if is_expanded {
+                                        div { class: "nested-children",
+                                            LayerTree {
+                                                parent_id: Some(child.id.clone()),
+                                                depth: depth + 1,
+                                            }
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -285,9 +309,9 @@ pub fn Sidebar() -> Element {
     let mut state = use_context::<Signal<AppState>>();
 
     // Collect data before rendering
-    let compositions: Vec<Layer> = {
+    let workstreams: Vec<Layer> = {
         let s = state.read();
-        s.root_compositions().into_iter().cloned().collect()
+        s.root_workstreams().into_iter().cloned().collect()
     };
 
     let has_unbound = {
@@ -338,62 +362,66 @@ pub fn Sidebar() -> Element {
                     }
                 }
 
-                // ── Compositions ──
-                for comp in compositions.iter() {
+                // ── Workstreams with child Compositions ──
+                for ws in workstreams.iter() {
                     {
-                        let comp_id = comp.id.clone();
-                        let comp_id2 = comp.id.clone();
-                        let comp_id3 = comp.id.clone();
-                        let comp_id4 = comp.id.clone();
-                        let comp_id5 = comp.id.clone();
-                        let is_open = state.read().is_comp_open(&comp_id);
-                        let is_selected = state.read().selected_id.as_deref() == Some(&*comp_id);
-                        let child_count = state.read().children_of(&comp_id).len();
-                        let bg_color = if is_selected { "rgba(251,191,36,0.1)" } else { "transparent" };
-                        let text_color = if is_selected { "#fbbf24" } else { "#ffffff" };
+                        let ws_id = ws.id.clone();
+                        let ws_id2 = ws.id.clone();
+                        let ws_id3 = ws.id.clone();
+                        let ws_id_add = ws.id.clone();
+                        let is_ws_open = state.read().is_comp_open(&ws.id);
+                        let is_ws_selected = state.read().selected_id.as_deref() == Some(&*ws.id);
+                        let ws_bg = if is_ws_selected { "rgba(59,130,246,0.1)" } else { "transparent" };
+                        let ws_text = if is_ws_selected { "#3b82f6" } else { "#ffffff" };
                         let is_dragging = state.read().drag.source_id.is_some();
 
+                        // Gather child compositions under this workstream
+                        let child_comps: Vec<Layer> = state.read().children_of(&ws.id)
+                            .into_iter()
+                            .filter(|l| l.layer_type == LayerType::Composition)
+                            .cloned()
+                            .collect();
+                        let child_count = child_comps.len();
+
                         rsx! {
-                            div { 
+                            div {
                                 style: "border-bottom: 1px solid rgba(255,255,255,0.05);",
-                                // Composition header
+                                // Workstream header
                                 div {
-                                    style: "position: relative; display: flex; align-items: center; gap: 5px; padding: 6px 8px; cursor: pointer; user-select: none; background: {bg_color};",
-                                    
-                                    // Toggle area
+                                    style: "position: relative; display: flex; align-items: center; gap: 5px; padding: 6px 8px; cursor: pointer; user-select: none; background: {ws_bg};",
+
                                     div {
                                         style: "display: flex; align-items: center; gap: 5px; flex-grow: 1;",
                                         onclick: move |evt| {
                                             evt.stop_propagation();
-                                            state.write().toggle_comp(&comp_id);
+                                            state.write().toggle_comp(&ws_id);
                                         },
-                                        span { 
+                                        span {
                                             style: "display: flex; align-items: center; color: rgba(255,255,255,0.5);",
-                                            if is_open {
+                                            if is_ws_open {
                                                 svg { width: "12", height: "12", view_box: "0 0 24 24", fill: "none", stroke: "currentColor", stroke_width: "2", stroke_linecap: "round", stroke_linejoin: "round", polyline { points: "6 9 12 15 18 9" } }
                                             } else {
                                                 svg { width: "12", height: "12", view_box: "0 0 24 24", fill: "none", stroke: "currentColor", stroke_width: "2", stroke_linecap: "round", stroke_linejoin: "round", polyline { points: "9 18 15 12 9 6" } }
                                             }
                                         }
-                                        span { 
-                                            style: "display: flex; align-items: center; color: #fbbf24;",
+                                        span {
+                                            style: "display: flex; align-items: center; color: #3b82f6;",
                                             svg { width: "14", height: "14", view_box: "0 0 24 24", fill: "currentColor", stroke: "currentColor", stroke_width: "1", stroke_linecap: "round", stroke_linejoin: "round",
                                                 path { d: "M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" }
                                             }
                                         }
-                                        span { 
-                                            style: "font-size: 10px; font-weight: 500; color: {text_color};",
-                                            "{comp.name}"
+                                        span {
+                                            style: "font-size: 10px; font-weight: 500; color: {ws_text};",
+                                            "{ws.name}"
                                         }
                                         span { style: "font-size: 9px; color: rgba(255,255,255,0.3);", "{child_count}" }
                                     }
 
-                                    // Settings button (replaces reverse icon)
                                     button {
                                         style: "background: transparent; border: 1px solid rgba(255,255,255,0.1); display: flex; align-items: center; justify-content: center; color: rgba(255,255,255,0.5); padding: 4px; border-radius: 4px; cursor: pointer; z-index: 10;",
                                         onclick: move |evt| {
                                             evt.stop_propagation();
-                                            state.write().selected_id = Some(comp_id2.clone());
+                                            state.write().selected_id = Some(ws_id2.clone());
                                         },
                                         svg { width: "12", height: "12", view_box: "0 0 24 24", fill: "none", stroke: "currentColor", stroke_width: "2", stroke_linecap: "round", stroke_linejoin: "round",
                                             circle { cx: "12", cy: "12", r: "3" },
@@ -401,37 +429,140 @@ pub fn Sidebar() -> Element {
                                         }
                                     }
 
-                                    // Drop target for reparenting INTO this composition
+                                    // Drop target for reparenting INTO this workstream
                                     div {
                                         style: if is_dragging { "position: absolute; inset: 0; z-index: 5; pointer-events: auto;" } else { "position: absolute; inset: 0; z-index: 5; pointer-events: none;" },
                                         onpointerup: move |_| {
                                             let mut s = state.write();
                                             if let Some(source) = s.drag.source_id.take() {
-                                                s.reparent(&source, Some(comp_id3.clone()));
+                                                s.reparent(&source, Some(ws_id3.clone()));
                                             }
                                         },
                                     }
                                 }
 
-                                // Children (recursive)
-                                if is_open {
-                                    div { 
-                                        style: "padding-left: 6px; padding-right: 4px; padding-bottom: 6px; border-left: 1px solid rgba(255,255,255,0.05); margin-left: 14px;",
-                                        LayerTree {
-                                            parent_id: Some(comp_id4.clone()),
-                                            depth: 1,
+                                // Children: compositions and their children
+                                if is_ws_open {
+                                    div {
+                                        style: "padding-left: 6px; padding-right: 4px; padding-bottom: 6px; border-left: 1px solid rgba(59,130,246,0.15); margin-left: 14px;",
+
+                                        // Show child compositions
+                                        for comp in child_comps.iter() {
+                                            {
+                                                let comp_id = comp.id.clone();
+                                                let comp_id2 = comp.id.clone();
+                                                let comp_id3 = comp.id.clone();
+                                                let comp_id4 = comp.id.clone();
+                                                let comp_id5 = comp.id.clone();
+                                                let is_open = state.read().is_comp_open(&comp.id);
+                                                let is_selected = state.read().selected_id.as_deref() == Some(&*comp.id);
+                                                let comp_child_count = state.read().children_of(&comp.id).len();
+                                                let bg_color = if is_selected { "rgba(251,191,36,0.1)" } else { "transparent" };
+                                                let text_color = if is_selected { "#fbbf24" } else { "#ffffff" };
+                                                let is_comp_dragging = state.read().drag.source_id.is_some();
+
+                                                rsx! {
+                                                    div {
+                                                        style: "border-bottom: 1px solid rgba(255,255,255,0.03);",
+                                                        // Composition header
+                                                        div {
+                                                            style: "position: relative; display: flex; align-items: center; gap: 5px; padding: 5px 6px; cursor: pointer; user-select: none; background: {bg_color};",
+                                                            div {
+                                                                style: "display: flex; align-items: center; gap: 4px; flex-grow: 1;",
+                                                                onclick: move |evt| {
+                                                                    evt.stop_propagation();
+                                                                    state.write().toggle_comp(&comp_id);
+                                                                },
+                                                                span {
+                                                                    style: "display: flex; align-items: center; color: rgba(255,255,255,0.5);",
+                                                                    if is_open {
+                                                                        svg { width: "10", height: "10", view_box: "0 0 24 24", fill: "none", stroke: "currentColor", stroke_width: "2", stroke_linecap: "round", stroke_linejoin: "round", polyline { points: "6 9 12 15 18 9" } }
+                                                                    } else {
+                                                                        svg { width: "10", height: "10", view_box: "0 0 24 24", fill: "none", stroke: "currentColor", stroke_width: "2", stroke_linecap: "round", stroke_linejoin: "round", polyline { points: "9 18 15 12 9 6" } }
+                                                                    }
+                                                                }
+                                                                span {
+                                                                    style: "display: flex; align-items: center; color: #fbbf24;",
+                                                                    svg { width: "12", height: "12", view_box: "0 0 24 24", fill: "currentColor", stroke: "currentColor", stroke_width: "1", stroke_linecap: "round", stroke_linejoin: "round",
+                                                                        path { d: "M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" }
+                                                                    }
+                                                                }
+                                                                span {
+                                                                    style: "font-size: 10px; font-weight: 500; color: {text_color};",
+                                                                    "{comp.name}"
+                                                                }
+                                                                span { style: "font-size: 9px; color: rgba(255,255,255,0.3);", "{comp_child_count}" }
+                                                            }
+
+                                                            button {
+                                                                style: "background: transparent; border: 1px solid rgba(255,255,255,0.1); display: flex; align-items: center; justify-content: center; color: rgba(255,255,255,0.5); padding: 3px; border-radius: 3px; cursor: pointer; z-index: 10;",
+                                                                onclick: move |evt| {
+                                                                    evt.stop_propagation();
+                                                                    state.write().selected_id = Some(comp_id2.clone());
+                                                                },
+                                                                svg { width: "10", height: "10", view_box: "0 0 24 24", fill: "none", stroke: "currentColor", stroke_width: "2", stroke_linecap: "round", stroke_linejoin: "round",
+                                                                    circle { cx: "12", cy: "12", r: "3" },
+                                                                    path { d: "M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" }
+                                                                }
+                                                            }
+
+                                                            // Drop target for reparenting INTO this composition
+                                                            div {
+                                                                style: if is_comp_dragging { "position: absolute; inset: 0; z-index: 5; pointer-events: auto;" } else { "position: absolute; inset: 0; z-index: 5; pointer-events: none;" },
+                                                                onpointerup: move |_| {
+                                                                    let mut s = state.write();
+                                                                    if let Some(source) = s.drag.source_id.take() {
+                                                                        s.reparent(&source, Some(comp_id3.clone()));
+                                                                    }
+                                                                },
+                                                            }
+                                                        }
+
+                                                        // Children (recursive)
+                                                        if is_open {
+                                                            div {
+                                                                style: "padding-left: 6px; padding-right: 4px; padding-bottom: 4px; border-left: 1px solid rgba(255,255,255,0.05); margin-left: 14px;",
+                                                                LayerTree {
+                                                                    parent_id: Some(comp_id4.clone()),
+                                                                    depth: 2,
+                                                                }
+
+                                                                // Add layer button
+                                                                button {
+                                                                    style: "margin-top: 4px; width: 100%; font-size: 10px; padding: 5px 0; border: 1px dashed rgba(123,97,255,0.3); border-radius: 4px; background: transparent; color: #7b61ff; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 4px;",
+                                                                    onclick: move |_| {
+                                                                        let mut s = state.write();
+                                                                        s.add_parent_id = Some(comp_id5.clone());
+                                                                        s.show_add_modal = true;
+                                                                    },
+                                                                    span { style: "font-size: 10px;", "+" }
+                                                                    "Add Layer"
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            }
                                         }
 
-                                        // Add layer button
+                                        // Unbound children of this workstream (non-comp)
+                                        LayerTree {
+                                            parent_id: Some(ws_id_add.clone()),
+                                            depth: 1,
+                                            exclude_comps: true,
+                                        }
+
+                                        // Add composition button for this workstream
                                         button {
-                                            style: "margin-top: 4px; width: 100%; font-size: 10px; padding: 5px 0; border: 1px dashed rgba(123,97,255,0.3); border-radius: 4px; background: transparent; color: #7b61ff; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 4px;",
-                                            onclick: move |_| {
-                                                let mut s = state.write();
-                                                s.add_parent_id = Some(comp_id5.clone());
-                                                s.show_add_modal = true;
+                                            style: "margin-top: 4px; width: 100%; font-size: 10px; padding: 5px 0; border: 1px dashed rgba(251,191,36,0.3); border-radius: 4px; background: transparent; color: #fbbf24; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 4px;",
+                                            onclick: {
+                                                let ws_id_for_add = ws.id.clone();
+                                                move |_| {
+                                                    state.write().add_composition(Some(&ws_id_for_add));
+                                                }
                                             },
-                                            span { style: "font-size: 10px;", "+" }
-                                            "Add Layer"
+                                            span { style: "font-size: 10px;", "📁+" }
+                                            "Add Composition"
                                         }
                                     }
                                 }
