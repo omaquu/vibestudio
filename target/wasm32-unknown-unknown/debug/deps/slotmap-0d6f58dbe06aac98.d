@@ -1,0 +1,11 @@
+C:\Users\kuron\.gemini\antigravity\WorkSpace\Vibe-Studio\fresh-build\target\wasm32-unknown-unknown\debug\deps\slotmap-0d6f58dbe06aac98.d: C:\Users\kuron\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\slotmap-1.1.1\src\lib.rs C:\Users\kuron\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\slotmap-1.1.1\src\basic.rs C:\Users\kuron\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\slotmap-1.1.1\src\dense.rs C:\Users\kuron\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\slotmap-1.1.1\src\hop.rs C:\Users\kuron\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\slotmap-1.1.1\src\secondary.rs C:\Users\kuron\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\slotmap-1.1.1\src\sparse_secondary.rs C:\Users\kuron\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\slotmap-1.1.1\src\util.rs
+
+C:\Users\kuron\.gemini\antigravity\WorkSpace\Vibe-Studio\fresh-build\target\wasm32-unknown-unknown\debug\deps\libslotmap-0d6f58dbe06aac98.rmeta: C:\Users\kuron\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\slotmap-1.1.1\src\lib.rs C:\Users\kuron\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\slotmap-1.1.1\src\basic.rs C:\Users\kuron\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\slotmap-1.1.1\src\dense.rs C:\Users\kuron\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\slotmap-1.1.1\src\hop.rs C:\Users\kuron\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\slotmap-1.1.1\src\secondary.rs C:\Users\kuron\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\slotmap-1.1.1\src\sparse_secondary.rs C:\Users\kuron\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\slotmap-1.1.1\src\util.rs
+
+C:\Users\kuron\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\slotmap-1.1.1\src\lib.rs:
+C:\Users\kuron\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\slotmap-1.1.1\src\basic.rs:
+C:\Users\kuron\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\slotmap-1.1.1\src\dense.rs:
+C:\Users\kuron\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\slotmap-1.1.1\src\hop.rs:
+C:\Users\kuron\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\slotmap-1.1.1\src\secondary.rs:
+C:\Users\kuron\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\slotmap-1.1.1\src\sparse_secondary.rs:
+C:\Users\kuron\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\slotmap-1.1.1\src\util.rs:

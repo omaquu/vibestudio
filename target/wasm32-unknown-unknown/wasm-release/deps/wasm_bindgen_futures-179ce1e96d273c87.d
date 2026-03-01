@@ -1,0 +1,9 @@
+C:\Users\kuron\.gemini\antigravity\WorkSpace\Vibe-Studio\fresh-build\target\wasm32-unknown-unknown\wasm-release\deps\wasm_bindgen_futures-179ce1e96d273c87.d: C:\Users\kuron\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\wasm-bindgen-futures-0.4.62\src\lib.rs C:\Users\kuron\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\wasm-bindgen-futures-0.4.62\src\queue.rs C:\Users\kuron\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\wasm-bindgen-futures-0.4.62\src\task\singlethread.rs
+
+C:\Users\kuron\.gemini\antigravity\WorkSpace\Vibe-Studio\fresh-build\target\wasm32-unknown-unknown\wasm-release\deps\libwasm_bindgen_futures-179ce1e96d273c87.rlib: C:\Users\kuron\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\wasm-bindgen-futures-0.4.62\src\lib.rs C:\Users\kuron\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\wasm-bindgen-futures-0.4.62\src\queue.rs C:\Users\kuron\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\wasm-bindgen-futures-0.4.62\src\task\singlethread.rs
+
+C:\Users\kuron\.gemini\antigravity\WorkSpace\Vibe-Studio\fresh-build\target\wasm32-unknown-unknown\wasm-release\deps\libwasm_bindgen_futures-179ce1e96d273c87.rmeta: C:\Users\kuron\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\wasm-bindgen-futures-0.4.62\src\lib.rs C:\Users\kuron\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\wasm-bindgen-futures-0.4.62\src\queue.rs C:\Users\kuron\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\wasm-bindgen-futures-0.4.62\src\task\singlethread.rs
+
+C:\Users\kuron\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\wasm-bindgen-futures-0.4.62\src\lib.rs:
+C:\Users\kuron\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\wasm-bindgen-futures-0.4.62\src\queue.rs:
+C:\Users\kuron\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\wasm-bindgen-futures-0.4.62\src\task\singlethread.rs:

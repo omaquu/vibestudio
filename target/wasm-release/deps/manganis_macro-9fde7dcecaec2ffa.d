@@ -1,0 +1,9 @@
+C:\Users\kuron\.gemini\antigravity\WorkSpace\Vibe-Studio\fresh-build\target\wasm-release\deps\manganis_macro-9fde7dcecaec2ffa.d: C:\Users\kuron\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\manganis-macro-0.7.3\src\lib.rs C:\Users\kuron\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\manganis-macro-0.7.3\src\asset.rs C:\Users\kuron\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\manganis-macro-0.7.3\src\css_module.rs C:\Users\kuron\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\manganis-macro-0.7.3\src\linker.rs C:\Users\kuron\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\manganis-macro-0.7.3\src\../README.md
+
+C:\Users\kuron\.gemini\antigravity\WorkSpace\Vibe-Studio\fresh-build\target\wasm-release\deps\manganis_macro-9fde7dcecaec2ffa.dll: C:\Users\kuron\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\manganis-macro-0.7.3\src\lib.rs C:\Users\kuron\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\manganis-macro-0.7.3\src\asset.rs C:\Users\kuron\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\manganis-macro-0.7.3\src\css_module.rs C:\Users\kuron\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\manganis-macro-0.7.3\src\linker.rs C:\Users\kuron\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\manganis-macro-0.7.3\src\../README.md
+
+C:\Users\kuron\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\manganis-macro-0.7.3\src\lib.rs:
+C:\Users\kuron\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\manganis-macro-0.7.3\src\asset.rs:
+C:\Users\kuron\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\manganis-macro-0.7.3\src\css_module.rs:
+C:\Users\kuron\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\manganis-macro-0.7.3\src\linker.rs:
+C:\Users\kuron\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\manganis-macro-0.7.3\src\../README.md:

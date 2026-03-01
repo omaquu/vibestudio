@@ -1,0 +1,10 @@
+C:\Users\kuron\.gemini\antigravity\WorkSpace\Vibe-Studio\fresh-build\target\debug\deps\const_serialize-6efdb6c98b1740e6.d: C:\Users\kuron\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\const-serialize-0.7.2\src\lib.rs C:\Users\kuron\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\const-serialize-0.7.2\src\const_buffers.rs C:\Users\kuron\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\const-serialize-0.7.2\src\const_vec.rs C:\Users\kuron\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\const-serialize-0.7.2\src\../README.md
+
+C:\Users\kuron\.gemini\antigravity\WorkSpace\Vibe-Studio\fresh-build\target\debug\deps\libconst_serialize-6efdb6c98b1740e6.rlib: C:\Users\kuron\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\const-serialize-0.7.2\src\lib.rs C:\Users\kuron\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\const-serialize-0.7.2\src\const_buffers.rs C:\Users\kuron\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\const-serialize-0.7.2\src\const_vec.rs C:\Users\kuron\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\const-serialize-0.7.2\src\../README.md
+
+C:\Users\kuron\.gemini\antigravity\WorkSpace\Vibe-Studio\fresh-build\target\debug\deps\libconst_serialize-6efdb6c98b1740e6.rmeta: C:\Users\kuron\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\const-serialize-0.7.2\src\lib.rs C:\Users\kuron\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\const-serialize-0.7.2\src\const_buffers.rs C:\Users\kuron\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\const-serialize-0.7.2\src\const_vec.rs C:\Users\kuron\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\const-serialize-0.7.2\src\../README.md
+
+C:\Users\kuron\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\const-serialize-0.7.2\src\lib.rs:
+C:\Users\kuron\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\const-serialize-0.7.2\src\const_buffers.rs:
+C:\Users\kuron\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\const-serialize-0.7.2\src\const_vec.rs:
+C:\Users\kuron\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\const-serialize-0.7.2\src\../README.md:
