@@ -419,6 +419,17 @@ fn CanvasArea() -> Element {
                ctx.globalAlpha = 1.0;
                ctx.globalCompositeOperation = 'source-over';
            }
+        } else {
+           // Fallback for mini-preview: draw three offset colored circles (R/G/B)
+           const r2 = 30 * sc;
+           const off = 8 * sc;
+           ctx.globalAlpha = 0.7;
+           ctx.beginPath(); ctx.arc(cx - off, cy, r2, 0, Math.PI*2); ctx.fillStyle='rgba(255,0,0,0.6)'; ctx.fill();
+           ctx.beginPath(); ctx.arc(cx, cy, r2, 0, Math.PI*2); ctx.fillStyle='rgba(0,255,0,0.6)'; ctx.fill();
+           ctx.beginPath(); ctx.arc(cx + off, cy, r2, 0, Math.PI*2); ctx.fillStyle='rgba(0,80,255,0.6)'; ctx.fill();
+           ctx.globalAlpha = 1.0;
+           ctx.font = `${Math.round(9*sc)}px system-ui`; ctx.textAlign='center'; ctx.fillStyle='#fff';
+           ctx.fillText('RGB SPLIT', cx, cy + r2 + 14*sc);
         }
         break;
       }
@@ -428,10 +439,19 @@ fn CanvasArea() -> Element {
         const sy = Math.max(0, cy - size);
         const sw = Math.min(W - sx, size * 2);
         const sh = Math.min(H - sy, size * 2);
-        ctx.fillStyle = c + Math.floor((l._abs_op || 1)*40).toString(16).padStart(2,'0');
+        // Draw a visible color wheel gradient swatch as representative visual
+        const grad = ctx.createLinearGradient(sx, sy, sx + sw, sy + sh);
+        grad.addColorStop(0, 'rgba(255,80,80,0.55)');
+        grad.addColorStop(0.33, 'rgba(80,255,120,0.55)');
+        grad.addColorStop(0.66, 'rgba(80,120,255,0.55)');
+        grad.addColorStop(1, 'rgba(255,220,80,0.55)');
         ctx.globalCompositeOperation = 'overlay';
+        ctx.fillStyle = grad;
         ctx.fillRect(sx, sy, sw, sh);
         ctx.globalCompositeOperation = 'source-over';
+        // Add label in mini-preview context
+        ctx.font = `${Math.round(9*sc)}px system-ui`; ctx.textAlign='center'; ctx.fillStyle='rgba(255,255,255,0.7)';
+        ctx.fillText('COLOR GRADE', cx, cy + size * 0.7 + 14*sc);
         break;
       }
       case 'FilmGrain': {
@@ -467,25 +487,49 @@ fn CanvasArea() -> Element {
             const sw = Math.min(W - sx, size * 2);
             const sh = Math.min(H - sy, size * 2);
             if(sw > 0 && sh > 0) {
-                const h2 = Math.random() * sh;
-                const y2 = sy + Math.random() * (sh - h2);
-                // Shift a slice horizontally within the bounds
-                ctx.drawImage(ctx.canvas, sx, y2, sw, h2, sx + (Math.random()-0.5)*40*amt, y2, sw, h2);
+                // Try to shift from canvas content; also draw visible glitch bars as fallback
+                try { ctx.drawImage(ctx.canvas, sx, sy + Math.random()*sh*0.5, sw, sh*0.3, sx + (Math.random()-0.5)*40*amt, sy + Math.random()*sh*0.5, sw, sh*0.3); } catch(e){}
+                // Always draw glitch bar pattern so mini-preview is visible
+                const barColors = [c+'cc', '#ff007088', '#00ffff88', '#ffffff44'];
+                for(let i=0; i<6; i++) {
+                    const bh = (4 + Math.random()*14) * sc;
+                    const by = sy + Math.random() * sh;
+                    const boff = (Math.random()-0.5) * 30 * amt * sc;
+                    ctx.fillStyle = barColors[i % barColors.length];
+                    ctx.fillRect(sx + boff, by, sw * (0.4 + Math.random()*0.6), bh);
+                }
             }
         }
         break;
       }
       case 'Sharpening': {
         const amt = l._abs_op || 1;
-        ctx.fillStyle = `rgba(255,255,255,${amt*0.03})`;
-        ctx.globalCompositeOperation = 'overlay';
         const size = 150 * sc;
         const sx = Math.max(0, cx - size);
         const sy = Math.max(0, cy - size);
         const sw = Math.min(W - sx, size * 2);
         const sh = Math.min(H - sy, size * 2);
+        ctx.fillStyle = `rgba(255,255,255,${amt*0.03})`;
+        ctx.globalCompositeOperation = 'overlay';
         ctx.fillRect(sx, sy, sw, sh);
         ctx.globalCompositeOperation = 'source-over';
+        // Visible representative: draw a sharp edge-detect pattern
+        const edgeR = 32 * sc;
+        ctx.save();
+        ctx.beginPath(); ctx.arc(cx, cy, edgeR, 0, Math.PI*2);
+        ctx.strokeStyle = `rgba(255,255,255,${0.3 + amt*0.4})`; ctx.lineWidth = 2 * sc;
+        ctx.shadowColor = '#fff'; ctx.shadowBlur = 6 * amt * sc;
+        ctx.stroke();
+        ctx.shadowBlur = 0;
+        // Inner concentric rings to suggest edge clarity
+        for(let i=1; i<=3; i++) {
+            ctx.beginPath(); ctx.arc(cx, cy, edgeR*(0.35+i*0.2), 0, Math.PI*2);
+            ctx.strokeStyle = `rgba(255,255,200,${0.15*amt})`; ctx.lineWidth = 1;
+            ctx.stroke();
+        }
+        ctx.restore();
+        ctx.font = `${Math.round(9*sc)}px system-ui`; ctx.textAlign='center'; ctx.fillStyle='rgba(255,255,255,0.6)';
+        ctx.fillText('SHARPEN', cx, cy + edgeR + 14*sc);
         break;
       }
       case 'CameraShake': {
@@ -955,7 +999,7 @@ fn CanvasArea() -> Element {
                 persp0 = l.perspective[0],
                 persp1 = l.perspective[1]
             ))
-            .collect::<String>();
+            .collect::<Vec<String>>().join(",");
         let globals_json = format!(
             r#"{{"bloom":{},"chromatic":{},"film_grain":{},"vhs":{},"hue":{},"sat":{},"sharp":{},"vignette":{}}}"#,
             s.global_bloom, s.global_chromatic, s.global_film_grain, s.global_vhs,
@@ -965,7 +1009,7 @@ fn CanvasArea() -> Element {
         let is_playing = s.is_playing;
         let js = format!(
             "window.__vibeLayers=[{}]; window.__vibeGlobals={}; window.__vibeMasterVolume={}; window.__vibeProjectW={}; window.__vibeProjectH={}; window.__vibeSelectedId='{}'; window.__vibeCurrentTime={}; window.__vibeIsPlaying={};", 
-            layers_json.trim_end_matches([',', ' ']), globals_json, s.master_volume,
+            layers_json, globals_json, s.master_volume,
             s.project_width, s.project_height,
             s.selected_id.as_deref().unwrap_or(""),
             ct, is_playing
@@ -1313,6 +1357,11 @@ fn App() -> Element {
             style: "position: absolute; inset: 0; display: flex; flex-direction: column; background: #0d0d12; color: #fff; overflow: hidden; transform-origin: top left; transform: scale({state.read().ui_scale}); width: calc(100% / {state.read().ui_scale}); height: calc(100% / {state.read().ui_scale});",
             onpointermove: move |evt| {
                 let mut s = state.write();
+                // Track cursor for sidebar drag ghost
+                if s.drag.source_id.is_some() && !s.drag.is_canvas_drag {
+                    s.drag.cursor_x = evt.client_coordinates().x;
+                    s.drag.cursor_y = evt.client_coordinates().y;
+                }
                 if let Some(panel) = s.resizing_panel.clone() {
                     let cx = evt.client_coordinates().x;
                     let cy = evt.client_coordinates().y;
@@ -1538,8 +1587,15 @@ fn App() -> Element {
             // Drag Indicator Overlay
             {
                 let s = state.read();
-                let drag_pos = s.drag.last_pos.clone();
                 let drag_source = s.drag.source_id.clone();
+                let drag_pos = if s.drag.is_canvas_drag {
+                    s.drag.last_pos.clone()
+                } else if drag_source.is_some() {
+                    Some((s.drag.cursor_x, s.drag.cursor_y))
+                } else {
+                    None
+                };
+                
                 let mut name = "Layer".to_string();
                 let mut icon = "📄";
                 if let Some(source_id) = &drag_source {

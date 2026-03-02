@@ -327,9 +327,12 @@ impl Layer {
 #[derive(Clone, Debug, Default)]
 pub struct DragState {
     pub source_id: Option<String>,
+    pub source_name: String,
     pub hover_target_id: Option<String>,
     pub is_canvas_drag: bool,
     pub last_pos: Option<(f64, f64)>,
+    pub cursor_x: f64,
+    pub cursor_y: f64,
 }
 
 // ─── Clip Drag (Timeline Move / Trim) ─────────────────────────────────────────
@@ -351,6 +354,7 @@ pub struct ClipDragState {
     pub original_duration: f64,
     pub original_fade_in: f64,
     pub original_fade_out: f64,
+    pub hover_target_id: Option<String>,
 }
 
 // ─── App State ────────────────────────────────────────────────────────────────
@@ -745,6 +749,7 @@ impl AppState {
                 original_duration: layer.duration,
                 original_fade_in: layer.fade_in,
                 original_fade_out: layer.fade_out,
+                hover_target_id: None,
             };
             self.selected_id = Some(layer_id.to_string());
         }
@@ -874,6 +879,18 @@ impl AppState {
     }
 
     pub fn end_clip_drag(&mut self) {
+        let mut do_reparent = None;
+        if let Some(lid) = &self.clip_drag.layer_id {
+            if let Some(target_id) = &self.clip_drag.hover_target_id {
+                let pid = if target_id == "UNBOUND" { None } else { Some(target_id.clone()) };
+                do_reparent = Some((lid.clone(), pid));
+            }
+        }
+        
+        if let Some((lid, pid)) = do_reparent {
+            self.reparent(&lid, pid);
+        }
+        
         self.clip_drag = ClipDragState::default();
     }
 

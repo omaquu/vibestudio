@@ -294,9 +294,16 @@ pub fn Inspector() -> Element {
                     let id_pos_z = layer.id.clone();
                     let id_start = layer.id.clone();
                     let id_dur = layer.id.clone();
+                    let id_fade_in = layer.id.clone();
+                    let id_fade_out = layer.id.clone();
                     let id_reparent = layer.id.clone();
                     let id_filter = layer.id.clone();
                     let id_delete = layer.id.clone();
+                    let id_custom_color = layer.id.clone();
+                    let id_flip_x = layer.id.clone();
+                    let id_flip_y = layer.id.clone();
+                    let id_persp_x = layer.id.clone();
+                    let id_persp_y = layer.id.clone();
                     
                     rsx! {
                         div { style: "display: flex; flex-direction: column; gap: 0;",
@@ -429,6 +436,90 @@ pub fn Inspector() -> Element {
                                     }
                                 }
 
+                                // Custom Color
+                                {
+                                    let col_val = layer.custom_color.clone().unwrap_or_else(|| layer.layer_type.color_hex().to_string());
+                                    rsx! {
+                                        div { style: "display: flex; align-items: center; gap: 6px; margin-top: 6px;",
+                                            label { style: "font-size: 9px; color: rgba(255,255,255,0.3); flex: 1;", "Color" }
+                                            input {
+                                                r#type: "color",
+                                                style: "width: 22px; height: 22px; padding: 0; border: none; background: none; cursor: pointer; flex-shrink: 0;",
+                                                value: "{col_val}",
+                                                oninput: move |evt| {
+                                                    if let Some(l) = state.write().layers.iter_mut().find(|l| l.id == id_custom_color) {
+                                                        l.custom_color = Some(evt.value());
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+
+                                // Flip X / Y
+                                {
+                                    rsx! {
+                                        div { style: "display: grid; grid-template-columns: 1fr 1fr; gap: 4px; margin-top: 6px;",
+                                            Toggle {
+                                                label: "Flip X".to_string(),
+                                                checked: layer.flip_x,
+                                                on_change: move |_| {
+                                                    if let Some(l) = state.write().layers.iter_mut().find(|l| l.id == id_flip_x) {
+                                                        l.flip_x = !l.flip_x;
+                                                    }
+                                                }
+                                            }
+                                            Toggle {
+                                                label: "Flip Y".to_string(),
+                                                checked: layer.flip_y,
+                                                on_change: move |_| {
+                                                    if let Some(l) = state.write().layers.iter_mut().find(|l| l.id == id_flip_y) {
+                                                        l.flip_y = !l.flip_y;
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+
+                                // Perspective X / Y
+                                {
+                                    rsx! {
+                                        div { style: "display: grid; grid-template-columns: 1fr 1fr; gap: 4px; margin-top: 6px;",
+                                            div { style: "display: flex; flex-direction: column; gap: 2px;",
+                                                label { style: "font-size: 9px; color: rgba(255,255,255,0.3);", "Persp X" }
+                                                input {
+                                                    r#type: "range", min: "-10", max: "10", step: "0.1",
+                                                    value: "{layer.perspective[0]}",
+                                                    style: "width: 100%; cursor: pointer;",
+                                                    oninput: move |evt| {
+                                                        if let Ok(v) = evt.value().parse::<f64>() {
+                                                            if let Some(l) = state.write().layers.iter_mut().find(|l| l.id == id_persp_x) {
+                                                                l.perspective[0] = v as f32;
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                            div { style: "display: flex; flex-direction: column; gap: 2px;",
+                                                label { style: "font-size: 9px; color: rgba(255,255,255,0.3);", "Persp Y" }
+                                                input {
+                                                    r#type: "range", min: "-10", max: "10", step: "0.1",
+                                                    value: "{layer.perspective[1]}",
+                                                    style: "width: 100%; cursor: pointer;",
+                                                    oninput: move |evt| {
+                                                        if let Ok(v) = evt.value().parse::<f64>() {
+                                                            if let Some(l) = state.write().layers.iter_mut().find(|l| l.id == id_persp_y) {
+                                                                l.perspective[1] = v as f32;
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+
                                 // Position X/Y/Z
                                 div { style: "display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 4px; margin-top: 6px;",
                                     div { style: "display: flex; flex-direction: column; gap: 2px;",
@@ -504,6 +595,37 @@ pub fn Inspector() -> Element {
                                                 if let Ok(v) = evt.value().parse::<f64>() {
                                                     if let Some(l) = state.write().layers.iter_mut().find(|l| l.id == id_dur) {
                                                         l.duration = v.max(0.1);
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                                // Fade In / Fade Out
+                                div { style: "display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 4px;",
+                                    div { style: "display: flex; flex-direction: column; gap: 2px;",
+                                        label { style: "font-size: 9px; color: rgba(255,255,255,0.3);", "Fade In (s)" }
+                                        input {
+                                            r#type: "number", step: "0.05", min: "0", class: "glass-input", style: "font-size: 10px; padding: 3px 6px;",
+                                            value: "{layer.fade_in}",
+                                            oninput: move |evt| {
+                                                if let Ok(v) = evt.value().parse::<f64>() {
+                                                    if let Some(l) = state.write().layers.iter_mut().find(|l| l.id == id_fade_in) {
+                                                        l.fade_in = v.max(0.0);
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                    div { style: "display: flex; flex-direction: column; gap: 2px;",
+                                        label { style: "font-size: 9px; color: rgba(255,255,255,0.3);", "Fade Out (s)" }
+                                        input {
+                                            r#type: "number", step: "0.05", min: "0", class: "glass-input", style: "font-size: 10px; padding: 3px 6px;",
+                                            value: "{layer.fade_out}",
+                                            oninput: move |evt| {
+                                                if let Ok(v) = evt.value().parse::<f64>() {
+                                                    if let Some(l) = state.write().layers.iter_mut().find(|l| l.id == id_fade_out) {
+                                                        l.fade_out = v.max(0.0);
                                                     }
                                                 }
                                             }
@@ -852,6 +974,58 @@ pub fn Inspector() -> Element {
                                 }
                             }
 
+                            // Video Properties
+                            if layer.layer_type == LayerType::Video {
+                                {
+                                    let id_vid_url = layer.id.clone();
+                                    let id_vid_file = layer.id.clone();
+                                    rsx! {
+                                        Section {
+                                            title: "Video Source".to_string(),
+                                            default_open: true,
+                                            div { style: "display: flex; flex-direction: column; gap: 4px;",
+                                                label { style: "font-size: 10px; color: rgba(255,255,255,0.4);", "File/URL" }
+                                                div { style: "display: flex; gap: 4px;",
+                                                    input {
+                                                        r#type: "text",
+                                                        class: "glass-input",
+                                                        style: "font-size: 10px; padding: 4px; flex-grow: 1; box-sizing: border-box;",
+                                                        placeholder: "Enter video URL...",
+                                                        value: "{layer.media_url.as_deref().unwrap_or(\"\")}",
+                                                        onchange: move |evt| {
+                                                            let val = evt.value();
+                                                            if let Some(l) = state.write().layers.iter_mut().find(|l| l.id == id_vid_url) {
+                                                                l.media_url = Some(val);
+                                                            }
+                                                        }
+                                                    }
+                                                    label {
+                                                        style: "cursor: pointer; background: rgba(255,255,255,0.1); border-radius: 4px; padding: 0 8px; display: flex; align-items: center; justify-content: center; font-size: 10px; border: 1px solid rgba(255,255,255,0.05); color: #fff;",
+                                                        "Browse"
+                                                        input {
+                                                            r#type: "file",
+                                                            accept: "video/*",
+                                                            style: "display: none;",
+                                                            onchange: move |_evt| {
+                                                                let id_clone = id_vid_file.clone();
+                                                                let script = format!(r#"
+                                                                    let input = event.target;
+                                                                    if (input.files && input.files[0]) {{
+                                                                        let url = URL.createObjectURL(input.files[0]);
+                                                                        window.dispatchEvent(new CustomEvent("vibe_image_uploaded", {{detail: {{id: "{}", url: url}}}}));
+                                                                    }}
+                                                                "#, id_clone);
+                                                                let _ = js_sys::eval(&script);
+                                                            },
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
                             // Effect Properties
                             if layer.layer_type == LayerType::Starfield {
                                 {
@@ -867,6 +1041,59 @@ pub fn Inspector() -> Element {
                                                     on_change: move |checked| {
                                                         if let Some(l) = state.write().layers.iter_mut().find(|l| l.id == id_dir) {
                                                             l.effect_params.direction = if checked { -1 } else { 1 };
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
+                            // ColorCorrection per-layer parameters
+                            if layer.layer_type == LayerType::ColorCorrection {
+                                {
+                                    let id_hue = layer.id.clone();
+                                    let id_sat = layer.id.clone();
+                                    let id_con = layer.id.clone();
+                                    rsx! {
+                                        Section {
+                                            title: "Color Settings".to_string(),
+                                            default_open: true,
+                                            div { style: "display: flex; flex-direction: column; gap: 6px;",
+                                                Slider {
+                                                    label: "Hue Shift".to_string(),
+                                                    min: -180.0,
+                                                    max: 180.0,
+                                                    step: 1.0,
+                                                    value: layer.effect_params.hue_shift as f64,
+                                                    on_change: move |v| {
+                                                        if let Some(l) = state.write().layers.iter_mut().find(|l| l.id == id_hue) {
+                                                            l.effect_params.hue_shift = v as f32;
+                                                        }
+                                                    }
+                                                }
+                                                Slider {
+                                                    label: "Saturation".to_string(),
+                                                    min: 0.0,
+                                                    max: 3.0,
+                                                    step: 0.05,
+                                                    value: layer.effect_params.saturation as f64,
+                                                    on_change: move |v| {
+                                                        if let Some(l) = state.write().layers.iter_mut().find(|l| l.id == id_sat) {
+                                                            l.effect_params.saturation = v as f32;
+                                                        }
+                                                    }
+                                                }
+                                                Slider {
+                                                    label: "Contrast".to_string(),
+                                                    min: 0.0,
+                                                    max: 3.0,
+                                                    step: 0.05,
+                                                    value: layer.effect_params.contrast as f64,
+                                                    on_change: move |v| {
+                                                        if let Some(l) = state.write().layers.iter_mut().find(|l| l.id == id_con) {
+                                                            l.effect_params.contrast = v as f32;
                                                         }
                                                     }
                                                 }

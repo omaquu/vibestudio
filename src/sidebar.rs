@@ -65,7 +65,12 @@ fn LayerRow(
                 style: "display: flex; align-items: center; justify-content: center; cursor: grab; padding: 2px;",
                 onpointerdown: move |evt| {
                     evt.stop_propagation();
-                    state.write().drag.source_id = Some(id_drag.clone());
+                    let mut s = state.write();
+                    let name = s.layers.iter().find(|l| l.id == id_drag).map(|l| l.name.clone()).unwrap_or_default();
+                    s.drag.source_id = Some(id_drag.clone());
+                    s.drag.source_name = name;
+                    s.drag.cursor_x = evt.client_coordinates().x;
+                    s.drag.cursor_y = evt.client_coordinates().y;
                 },
                 svg { width: "14", height: "14", fill: "none", stroke: "currentColor", stroke_width: "2", stroke_linecap: "round", stroke_linejoin: "round",
                     path { d: "M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01" }

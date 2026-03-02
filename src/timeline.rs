@@ -68,12 +68,13 @@ pub fn Timeline() -> Element {
 
     let num_ticks = ((duration / tick_interval).ceil() as usize).min(500);
 
+    let ws_for_ticks = workstreams.clone();
     let ticks_elements: Vec<Element> = (0..=num_ticks).filter_map(|i| {
         let t = (i as f64) * tick_interval;
         if t > duration + 0.001 { return None; }
         
         let mut tick_color = "rgba(255,255,255,0.08)".to_string();
-        for ws in &workstreams {
+        for ws in &ws_for_ticks {
             if t >= ws.start_time && t <= ws.start_time + ws.duration {
                 let hex = ws.custom_color.as_deref().unwrap_or(ws.layer_type.color_hex());
                 tick_color = format!("{}40", hex); // 25% opacity
@@ -109,6 +110,7 @@ pub fn Timeline() -> Element {
     let time_str = fmt_time(current_time);
     let dur_str = fmt_time(duration);
     let playhead_pct = if duration > 0.0 { (current_time / duration) * 100.0 } else { 0.0 };
+    let workstreams_len = workstreams.len();
 
     rsx! {
         div {
@@ -402,11 +404,13 @@ pub fn Timeline() -> Element {
                     div {
                         style: "flex-grow: 1; overflow: hidden; min-height: 0; position: relative;",
 
-                        for ws in workstreams.iter() {
+                        for ws in workstreams.clone().into_iter() {
                             {
                                 let ws_pct_left = if duration > 0.0 { ((ws.start_time).max(0.0) / duration) * 100.0 } else { 0.0 };
-                                let ws_pct_width = if duration > 0.0 { (ws.duration / duration) * 100.0 } else { 100.0 / workstreams.len().max(1) as f64 };
+                                let ws_pct_width = if duration > 0.0 { (ws.duration / duration) * 100.0 } else { 100.0 / workstreams_len.max(1) as f64 };
                                 let ws_id_open = ws.id.clone();
+                                let ws_id_open2 = ws.id.clone();
+                                let ws_id_open3 = ws.id.clone();
                                 let ws_id_toggle = ws.id.clone();
                                 let ws_color = ws.custom_color.as_deref().unwrap_or(ws.layer_type.color_hex());
                                 let is_open = state.read().is_comp_open(&ws.id);
@@ -451,6 +455,18 @@ pub fn Timeline() -> Element {
                                                 let mut s = state.write();
                                                 s.selected_id = Some(ws_id_open.clone());
                                                 s.begin_clip_drag(&ws_id_open, crate::model::ClipDragMode::Move, evt.client_coordinates().x);
+                                            },
+                                            onpointerenter: move |_| {
+                                                let mut s = state.write();
+                                                if s.clip_drag.layer_id.is_some() {
+                                                    s.clip_drag.hover_target_id = Some(ws_id_open2.clone());
+                                                }
+                                            },
+                                            onpointerleave: move |_| {
+                                                let mut s = state.write();
+                                                if s.clip_drag.hover_target_id.as_ref() == Some(&ws_id_open3) {
+                                                    s.clip_drag.hover_target_id = None;
+                                                }
                                             },
                                             span { style: "font-size: 10px; color: rgba(255,255,255,0.4);", if is_open { "▾" } else { "▸" } }
                                             span { style: "font-size: 11px; font-weight: 600; color: #3b82f6; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;", "{ws.name}" }
@@ -619,6 +635,9 @@ pub fn Timeline() -> Element {
                                                             rsx! {
                                                                 for (track_idx, track_layers) in tracks.into_iter().enumerate() {
                                                                     {
+                                                                        let ws_id_row = ws.id.clone();
+                                                                        let ws_id_row2 = ws.id.clone();
+                                                                        let ws_id_row3 = ws.id.clone();
                                                                         let first_name = track_layers.first().map(|l| l.name.clone()).unwrap_or_default();
                                                                         // Choose the first layer's name for the row label (or show multiple names)
                                                                         let track_label = if track_layers.len() == 1 { first_name } else { format!("{} +{}", first_name, track_layers.len() - 1) };
@@ -626,8 +645,20 @@ pub fn Timeline() -> Element {
                                                                         let row_bg = if any_selected { "rgba(123,97,255,0.15)" } else { "transparent" };
                                                                         rsx! {
                                                                             div {
-                                                                                key: "track-{ws.id}-{track_idx}",
+                                                                                key: "track-{ws_id_row}-{track_idx}",
                                                                                 style: "height: 28px; flex-shrink: 0; position: relative; border-bottom: 1px solid rgba(255,255,255,0.03); background: {row_bg};",
+                                                                                onpointerenter: move |_| {
+                                                                                    let mut s = state.write();
+                                                                                    if s.clip_drag.layer_id.is_some() {
+                                                                                        s.clip_drag.hover_target_id = Some(ws_id_row2.clone());
+                                                                                    }
+                                                                                },
+                                                                                onpointerleave: move |_| {
+                                                                                    let mut s = state.write();
+                                                                                    if s.clip_drag.hover_target_id.as_ref() == Some(&ws_id_row3) {
+                                                                                        s.clip_drag.hover_target_id = None;
+                                                                                    }
+                                                                                },
                                                                                 // Row label
                                                                                 div { style: "position: absolute; left: 0; top: 0; bottom: 0; display: flex; align-items: center; padding-left: 12px; font-size: 10px; color: rgba(255,255,255,0.5); pointer-events: none; z-index: 2; background: rgba(11,11,20,0.6); width: 80px; text-overflow: ellipsis; overflow: hidden; white-space: nowrap;",
                                                                                     "{track_label}"
@@ -727,6 +758,18 @@ pub fn Timeline() -> Element {
                                             key: "unbound-{layer.id}",
                                             style: "height: 28px; flex-shrink: 0; display: flex; position: relative; border-bottom: 1px solid rgba(255,255,255,0.03); background: {bg}; cursor: pointer;",
                                             onclick: move |_| { state.write().selected_id = Some(layer_id_sel.clone()); },
+                                            onpointerenter: move |_| {
+                                                let mut s = state.write();
+                                                if s.clip_drag.layer_id.is_some() {
+                                                    s.clip_drag.hover_target_id = Some("UNBOUND".to_string());
+                                                }
+                                            },
+                                            onpointerleave: move |_| {
+                                                let mut s = state.write();
+                                                if s.clip_drag.hover_target_id.as_deref() == Some("UNBOUND") {
+                                                    s.clip_drag.hover_target_id = None;
+                                                }
+                                            },
                                             
                                             // Left Sticky Label
                                             div { style: "position: absolute; left: 0; top: 0; bottom: 0; display: flex; align-items: center; padding-left: 8px; font-size: 11px; color: rgba(255,255,255,0.7); pointer-events: none; z-index: 2; background: rgba(11,11,20,0.8); width: 100px; text-overflow: ellipsis; overflow: hidden; white-space: nowrap; border-right: 1px solid rgba(255,255,255,0.05);",
