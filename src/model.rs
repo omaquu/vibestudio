@@ -1,4 +1,5 @@
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::collections::HashMap;
 
 // ─── ID Generation ────────────────────────────────────────────────────────────
 static ID_COUNTER: AtomicU64 = AtomicU64::new(1);
@@ -411,6 +412,8 @@ pub struct AppState {
     pub bottom_panel_height: f64,
     pub resizing_panel: Option<String>,
     pub next_comp_index: usize,
+    // Per-workstream zoom overrides (ws_id -> zoom level)
+    pub zoom_overrides: HashMap<String, f32>,
 }
 
 impl Default for AppState {
@@ -462,6 +465,7 @@ impl Default for AppState {
             bottom_panel_height: 300.0,
             resizing_panel: None,
             next_comp_index: 1,
+            zoom_overrides: HashMap::new(),
         }
     }
 }
@@ -475,6 +479,11 @@ impl AppState {
     pub fn set_global_bloom(&mut self, bloom: f64) {
         self.global_bloom = bloom;
         self.log_terminal(&format!("> [SYSTEM] Saved preset: Bloom strength = {:.2}", bloom));
+    }
+
+    /// Get the effective zoom for a specific workstream (per-ws override or global)
+    pub fn workstream_zoom(&self, ws_id: &str) -> f32 {
+        self.zoom_overrides.get(ws_id).copied().unwrap_or(self.timeline_zoom)
     }
 
     // ── Queries ────────────────────────────────────────────────────────────
@@ -556,6 +565,17 @@ impl AppState {
     // ── Mutations ─────────────────────────────────────────────────────────
 
     pub fn add_layer(&mut self, mut layer: Layer) {
+        // Auto-assign orphan non-workstream layers to the first workstream
+        if layer.parent_id.is_none()
+            && layer.layer_type != LayerType::Workstream
+            && layer.layer_type != LayerType::Composition
+        {
+            let first_ws = self.root_workstreams().first().map(|w| w.id.clone());
+            if let Some(ws_id) = first_ws {
+                layer.parent_id = Some(ws_id);
+            }
+        }
+
         if let Some(pid) = &layer.parent_id {
             if let Some(parent) = self.layers.iter().find(|l| l.id == *pid).cloned() {
                 if parent.layer_type == LayerType::Composition {
@@ -569,9 +589,7 @@ impl AppState {
                         .map(|l| l.start_time + l.duration)
                         .fold(parent.start_time, f64::max);
                     layer.start_time = max_end;
-                    if layer.start_time + layer.duration > parent.start_time + parent.duration {
-                        layer.duration = (parent.start_time + parent.duration - layer.start_time).max(0.5);
-                    }
+                    // Auto-expand workstream instead of clamping
                 } else {
                     layer.start_time = parent.start_time;
                     if layer.start_time + layer.duration > parent.start_time + parent.duration {
@@ -585,8 +603,14 @@ impl AppState {
             layer.start_time = (layer.start_time * 10.0).round() / 10.0;
         }
         let id = layer.id.clone();
+        let child_end = layer.start_time + layer.duration;
+        let parent_id_for_expand = layer.parent_id.clone();
         self.layers.push(layer);
         self.selected_id = Some(id);
+        // Auto-expand parent workstream/composition to fit the new layer
+        if let Some(pid) = parent_id_for_expand {
+            self.expand_parent_duration(&pid, child_end);
+        }
     }
 
     pub fn remove_layer(&mut self, id: &str) {
@@ -807,8 +831,9 @@ impl AppState {
                 match mode {
                     ClipDragMode::Move => {
                         let mut new_start = (cd.original_start_time + delta_secs).max(0.0);
-                        if let Some((p_start, p_end)) = parent_bounds {
-                            new_start = new_start.clamp(p_start, (p_end - layer.duration).max(p_start));
+                        if let Some((p_start, _p_end)) = parent_bounds {
+                            new_start = new_start.max(p_start);
+                            // Don't clamp to parent end — we'll auto-expand instead
                         }
                         layer.start_time = snap(new_start);
                     }
@@ -827,12 +852,8 @@ impl AppState {
                         }
                     }
                     ClipDragMode::TrimRight => {
-                        let mut new_dur = (cd.original_duration + delta_secs).max(0.1);
-                        if let Some((_, p_end)) = parent_bounds {
-                            if layer.start_time + new_dur > p_end {
-                                new_dur = (p_end - layer.start_time).max(0.1);
-                            }
-                        }
+                        let new_dur = (cd.original_duration + delta_secs).max(0.1);
+                        // Don't clamp to parent end — we'll auto-expand instead
                         layer.duration = snap(new_dur).max(0.1);
                     }
                     ClipDragMode::FadeIn => {
@@ -843,6 +864,17 @@ impl AppState {
                     }
                 }
             }
+
+            // Auto-expand parent workstream/composition to fit the dragged layer
+            if let Some(lid_str) = &cd.layer_id {
+                if let Some(layer) = self.layers.iter().find(|l| l.id == *lid_str) {
+                    let child_end = layer.start_time + layer.duration;
+                    if let Some(pid) = layer.parent_id.clone() {
+                        self.expand_parent_duration(&pid, child_end);
+                    }
+                }
+            }
+
             if is_comp {
                 // Compositions are now absolutely positioned; sequence packing is disabled
                 // self.enforce_composition_sequence();
@@ -932,8 +964,13 @@ impl AppState {
     }
 
     pub fn add_workstream_with_duration(&mut self, duration: f64) {
+        // Spawn sequentially: start after the last existing workstream ends
+        let max_end = self.root_workstreams().iter()
+            .map(|w| w.start_time + w.duration)
+            .fold(0.0_f64, f64::max);
         let ws_count = self.root_workstreams().len() + 1;
         let mut ws = Layer::new_workstream(&format!("Workstream {}", ws_count));
+        ws.start_time = max_end;
         ws.duration = duration;
         let ws_id = ws.id.clone();
         self.layers.push(ws);

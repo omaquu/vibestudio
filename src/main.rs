@@ -245,7 +245,7 @@ fn CanvasArea() -> Element {
             if(!window.__vibeMediaCache[url]) {
                 if(l.type === 'Video') {
                     const vid = document.createElement('video');
-                    vid.src = url; vid.crossOrigin = 'anonymous'; vid.muted = true; vid.loop = true;
+                    vid.src = url; vid.crossOrigin = 'anonymous'; vid.muted = false; vid.loop = true;
                     vid.play().catch(()=>{});
                     window.__vibeMediaCache[url] = vid;
                 } else {
@@ -739,20 +739,58 @@ fn CanvasArea() -> Element {
       ctx.fillText('Canvas Preview — add layers in the sidebar',W/2,H/2);
     }
 
-    // ── Multi-Audio Player Management ──
+    // ── Multi-Audio/Video Player Management ──
     if(!window.__vibeAudioPlayers) window.__vibeAudioPlayers = {};
-    const audioLayers = layers.filter(l => l.type === 'Audio' && l._abs_vis && l.media_url);
+    if(!window.__vibePlayerAnalysers) window.__vibePlayerAnalysers = {};
+    const mediaLayers = layers.filter(l => (l.type === 'Audio' || l.type === 'Video') && l._abs_vis && l.media_url);
     const isPlaying = window.__vibeIsPlaying || false;
     const masterVol = window.__vibeMasterVolume !== undefined ? window.__vibeMasterVolume : 1.0;
     
-    // Create/update audio elements for each audio layer
-    audioLayers.forEach(al => {
+    // Ensure we have an AudioContext for connecting analyser nodes
+    if(!window.__vibePlayerAudioCtx) {
+        try { window.__vibePlayerAudioCtx = new AudioContext(); } catch(e) {}
+    }
+    if(!window.__vibePlayerAnalyser && window.__vibePlayerAudioCtx) {
+        try {
+            window.__vibePlayerAnalyser = window.__vibePlayerAudioCtx.createAnalyser();
+            window.__vibePlayerAnalyser.fftSize = 256;
+            window.__vibePlayerAnalyser.connect(window.__vibePlayerAudioCtx.destination);
+        } catch(e) {}
+    }
+    
+    // Create/update audio/video elements for each media layer
+    mediaLayers.forEach(al => {
         if(!window.__vibeAudioPlayers[al.id]) {
-            const aud = new Audio();
-            aud.crossOrigin = 'anonymous';
-            aud.src = al.media_url;
-            aud.preload = 'auto';
-            window.__vibeAudioPlayers[al.id] = { el: aud, lastSrc: al.media_url };
+            let mediaEl;
+            if(al.type === 'Video') {
+                // For video layers, reuse the cached video element if exists
+                mediaEl = window.__vibeMediaCache && window.__vibeMediaCache[al.media_url];
+                if(!mediaEl) {
+                    mediaEl = document.createElement('video');
+                    mediaEl.src = al.media_url;
+                    mediaEl.crossOrigin = 'anonymous';
+                    mediaEl.muted = false;
+                    mediaEl.preload = 'auto';
+                    if(!window.__vibeMediaCache) window.__vibeMediaCache = {};
+                    window.__vibeMediaCache[al.media_url] = mediaEl;
+                }
+            } else {
+                mediaEl = new Audio();
+                mediaEl.crossOrigin = 'anonymous';
+                mediaEl.src = al.media_url;
+                mediaEl.preload = 'auto';
+            }
+            window.__vibeAudioPlayers[al.id] = { el: mediaEl, lastSrc: al.media_url, type: al.type };
+            
+            // Connect to shared analyser for audio reactivity
+            if(window.__vibePlayerAudioCtx && window.__vibePlayerAnalyser && !window.__vibePlayerAnalysers[al.id]) {
+                try {
+                    if(window.__vibePlayerAudioCtx.state === 'suspended') window.__vibePlayerAudioCtx.resume();
+                    const src = window.__vibePlayerAudioCtx.createMediaElementSource(mediaEl);
+                    src.connect(window.__vibePlayerAnalyser);
+                    window.__vibePlayerAnalysers[al.id] = src;
+                } catch(e) { /* may fail if already connected */ }
+            }
         }
         const player = window.__vibeAudioPlayers[al.id];
         if(player.lastSrc !== al.media_url) {
@@ -779,10 +817,23 @@ fn CanvasArea() -> Element {
     });
     // Pause any players for removed/inactive layers
     Object.keys(window.__vibeAudioPlayers).forEach(id => {
-        if(!audioLayers.find(al => al.id === id)) {
+        if(!mediaLayers.find(al => al.id === id)) {
             window.__vibeAudioPlayers[id].el.pause();
         }
     });
+    
+    // Update shared analyser frequency data for audio reactivity
+    if(window.__vibePlayerAnalyser) {
+        const buf = new Uint8Array(window.__vibePlayerAnalyser.frequencyBinCount);
+        window.__vibePlayerAnalyser.getByteFrequencyData(buf);
+        const third = Math.floor(buf.length / 3);
+        const avg = (a, b) => buf.slice(a,b).reduce((s,v)=>s+v,0) / ((b-a)||1) / 255;
+        window.__vibeFreq = { bass: avg(0,third), mid: avg(third,2*third), treble: avg(2*third,buf.length) };
+        
+        const timeBuf = new Uint8Array(window.__vibePlayerAnalyser.frequencyBinCount);
+        window.__vibePlayerAnalyser.getByteTimeDomainData(timeBuf);
+        window.__vibeTimeDomain = Array.from(timeBuf);
+    }
 
     // Apply Global Post-Effects
     const g = window.__vibeGlobals || {};

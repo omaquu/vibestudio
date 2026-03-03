@@ -19,8 +19,6 @@ pub fn Timeline() -> Element {
     let mut workstreams: Vec<Layer> = s.root_workstreams().into_iter().cloned().collect();
     workstreams.sort_by(|a, b| a.start_time.partial_cmp(&b.start_time).unwrap_or(std::cmp::Ordering::Equal));
 
-    let root_unbound: Vec<Layer> = s.unbound_layers().into_iter().filter(|l| l.parent_id.is_none()).cloned().collect();
-
     // Gather children
     let mut ws_children_map = std::collections::HashMap::new();
     let mut open_comp_children = std::collections::HashMap::new();
@@ -412,6 +410,7 @@ pub fn Timeline() -> Element {
                                 let ws_id_open2 = ws.id.clone();
                                 let ws_id_open3 = ws.id.clone();
                                 let ws_id_toggle = ws.id.clone();
+                                let ws_id_zoom = ws.id.clone();
                                 let ws_color = ws.custom_color.as_deref().unwrap_or(ws.layer_type.color_hex());
                                 let is_open = state.read().is_comp_open(&ws.id);
                                 let ws_selected = selected_id.as_deref() == Some(&*ws.id);
@@ -426,20 +425,53 @@ pub fn Timeline() -> Element {
                                         key: "ws-{ws.id}",
                                         style: "position: absolute; left: {ws_pct_left}%; width: {ws_pct_width}%; top: 0; bottom: 0; display: flex; flex-direction: column; border-right: {ws_border}; background: rgba(255,255,255,0.01); overflow: hidden; min-height: 0;",
 
-                                        // Second-mark grid lines
+                                        // Ctrl+Wheel per-workstream zoom
+                                        onwheel: move |evt| {
+                                            // Check if Ctrl is held via modifiers
+                                            if evt.modifiers().ctrl() {
+                                                let delta = match evt.delta() {
+                                                    dioxus::html::geometry::WheelDelta::Pixels(p) => p.y,
+                                                    dioxus::html::geometry::WheelDelta::Lines(p) => p.y * 16.0,
+                                                    dioxus::html::geometry::WheelDelta::Pages(p) => p.y * 100.0,
+                                                };
+                                                let mut s = state.write();
+                                                let current_zoom = s.workstream_zoom(&ws_id_zoom);
+                                                let new_zoom = if delta > 0.0 {
+                                                    (current_zoom / 1.15).max(0.1)
+                                                } else {
+                                                    (current_zoom * 1.15).min(50.0)
+                                                };
+                                                s.zoom_overrides.insert(ws_id_zoom.clone(), new_zoom);
+                                                evt.stop_propagation();
+                                            }
+                                        },
+
+                                        // Seconds grid with labels
                                         {
                                             let ws_dur = ws.duration;
-                                            let grid_interval = if ws_dur > 120.0 { 10.0 } else if ws_dur > 30.0 { 5.0 } else { 1.0 };
+                                            let grid_interval = if ws_dur > 120.0 { 10.0 } else if ws_dur > 30.0 { 5.0 } else if ws_dur > 10.0 { 2.0 } else { 1.0 };
                                             let grid_count = (ws_dur / grid_interval).ceil() as usize;
                                             rsx! {
-                                                for gi in 1..grid_count {
+                                                for gi in 0..=grid_count {
                                                     {
-                                                        let gpct = ((gi as f64) * grid_interval / ws_dur) * 100.0;
-                                                        rsx! {
-                                                            div {
-                                                                key: "grid-{ws.id}-{gi}",
-                                                                style: "position: absolute; left: {gpct}%; top: 0; bottom: 0; width: 1px; background: rgba(255,255,255,0.04); pointer-events: none; z-index: 0;",
+                                                        let grid_time = (gi as f64) * grid_interval;
+                                                        if grid_time <= ws_dur + 0.001 {
+                                                            let gpct = if ws_dur > 0.0 { (grid_time / ws_dur) * 100.0 } else { 0.0 };
+                                                            let grid_label = if grid_time >= 60.0 {
+                                                                format!("{}:{:04.1}", (grid_time / 60.0).floor() as u32, grid_time % 60.0)
+                                                            } else {
+                                                                format!("{:.0}s", grid_time)
+                                                            };
+                                                            rsx! {
+                                                                div {
+                                                                    key: "grid-{ws.id}-{gi}",
+                                                                    style: "position: absolute; left: {gpct}%; top: 0; bottom: 0; display: flex; flex-direction: column; pointer-events: none; z-index: 0;",
+                                                                    div { style: "font-size: 8px; color: rgba(255,255,255,0.25); padding-left: 2px; line-height: 12px; white-space: nowrap;", "{grid_label}" }
+                                                                    div { style: "width: 1px; flex-grow: 1; background: rgba(255,255,255,0.04);" }
+                                                                }
                                                             }
+                                                        } else {
+                                                            rsx! { div { style: "display:none;" } }
                                                         }
                                                     }
                                                 }
@@ -735,128 +767,7 @@ pub fn Timeline() -> Element {
                         }
                     }
 
-                    // ── Unbound Layers Panel (Bottom Tracks) ──
-                    if !root_unbound.is_empty() {
-                        div {
-                            style: "flex-shrink: 0; border-top: 1px solid rgba(123,97,255,0.2); background: rgba(123,97,255,0.02); display: flex; flex-direction: column; overflow: hidden; padding: 4px 0;",
-                            for layer in root_unbound.iter() {
-                                {
-                                    let layer_color = layer.layer_type.color_hex();
-                                    let layer_selected = selected_id.as_deref() == Some(&*layer.id);
-                                    let bg = if layer_selected { "rgba(123,97,255,0.15)" } else { "transparent" };
-                                    let layer_id_sel = layer.id.clone();
-                                    let layer_id_drag = layer.id.clone();
-                                    let layer_start_time = layer.start_time;
-                                    
-                                    // Calculate span across entire global duration
-                                    let pps = zoom * 100.0;
-                                    let layer_px_left = layer.start_time.max(0.0) * pps;
-                                    let layer_px_width = (layer.duration * pps).max(2.0);
 
-                                    rsx! {
-                                        div {
-                                            key: "unbound-{layer.id}",
-                                            style: "height: 28px; flex-shrink: 0; display: flex; position: relative; border-bottom: 1px solid rgba(255,255,255,0.03); background: {bg}; cursor: pointer;",
-                                            onclick: move |_| { state.write().selected_id = Some(layer_id_sel.clone()); },
-                                            onpointerenter: move |_| {
-                                                let mut s = state.write();
-                                                if s.clip_drag.layer_id.is_some() {
-                                                    s.clip_drag.hover_target_id = Some("UNBOUND".to_string());
-                                                }
-                                            },
-                                            onpointerleave: move |_| {
-                                                let mut s = state.write();
-                                                if s.clip_drag.hover_target_id.as_deref() == Some("UNBOUND") {
-                                                    s.clip_drag.hover_target_id = None;
-                                                }
-                                            },
-                                            
-                                            // Left Sticky Label
-                                            div { style: "position: absolute; left: 0; top: 0; bottom: 0; display: flex; align-items: center; padding-left: 8px; font-size: 11px; color: rgba(255,255,255,0.7); pointer-events: none; z-index: 2; background: rgba(11,11,20,0.8); width: 100px; text-overflow: ellipsis; overflow: hidden; white-space: nowrap; border-right: 1px solid rgba(255,255,255,0.05);",
-                                                div { style: "width: 6px; height: 6px; border-radius: 50%; background: {layer_color}; margin-right: 6px; flex-shrink: 0;" }
-                                                "{layer.name}"
-                                            }
-
-                                            // Track Bar
-                                            div { style: "position: absolute; left: calc(100px + {layer_px_left}px); width: {layer_px_width}px; top: 4px; bottom: 4px; background: {layer_color}40; border: 1px solid {layer_color}80; border-radius: 2px; overflow: hidden; min-width: 4px; cursor: grab;",
-                                                onpointerdown: move |evt| {
-                                                    let mut s = state.write();
-                                                    s.selected_id = Some(layer_id_drag.clone());
-                                                    if s.is_cut_mode {
-                                                        let pps = s.timeline_zoom as f64 * 100.0;
-                                                        let t_local = evt.element_coordinates().x / pps;
-                                                        s.split_layer(&layer_id_drag, layer_start_time + t_local);
-                                                        s.is_cut_mode = false;
-                                                    } else {
-                                                        s.begin_clip_drag(&layer_id_drag, crate::model::ClipDragMode::Move, evt.client_coordinates().x);
-                                                    }
-                                                    evt.stop_propagation();
-                                                },
-                                                div { style: "font-size: 10px; color: #fff; padding: 0 4px; line-height: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; pointer-events: none; position: relative; z-index: 5;", "{layer.name} ({layer.duration:.0}s)" }
-                                                if layer.layer_type == LayerType::Audio {
-                                                    {
-                                                        let wave_id2 = format!("wavecanvas-{}", layer.id);
-                                                        let wave_color2 = layer_color.to_string();
-                                                        rsx! {
-                                                            canvas {
-                                                                id: "{wave_id2}",
-                                                                style: "position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0.5; pointer-events: none;",
-                                                                "data-wave-color": "{wave_color2}",
-                                                            }
-                                                        }
-                                                    }
-                                                }
-                                                {
-                                                    let id_l = layer.id.clone();
-                                                    let id_r = layer.id.clone();
-                                                    let id_fl = layer.id.clone();
-                                                    let id_fr = layer.id.clone();
-                                                    let fade_in_pct = if layer.duration > 0.0 { (layer.fade_in / layer.duration) * 100.0 } else { 0.0 };
-                                                    let fade_out_pct = if layer.duration > 0.0 { (layer.fade_out / layer.duration) * 100.0 } else { 0.0 };
-                                                    rsx! {
-                                                        div {
-                                                            style: "position: absolute; left: 0; top: 0; bottom: 0; width: 6px; cursor: ew-resize; background: rgba(255,255,255,0.15); z-index: 10;",
-                                                            onpointerdown: move |evt| {
-                                                                state.write().begin_clip_drag(&id_l, crate::model::ClipDragMode::TrimLeft, evt.client_coordinates().x);
-                                                                evt.stop_propagation();
-                                                            }
-                                                        }
-                                                        div {
-                                                            style: "position: absolute; right: 0; top: 0; bottom: 0; width: 6px; cursor: ew-resize; background: rgba(255,255,255,0.15); z-index: 10;",
-                                                            onpointerdown: move |evt| {
-                                                                state.write().begin_clip_drag(&id_r, crate::model::ClipDragMode::TrimRight, evt.client_coordinates().x);
-                                                                evt.stop_propagation();
-                                                            }
-                                                        }
-                                                        // Fade shading
-                                                        div { style: "position: absolute; left: 0; width: {fade_in_pct}%; top: 0; bottom: 0; background: linear-gradient(90deg, rgba(0,0,0,0.8) 0%, rgba(0,0,0,0) 100%); pointer-events: none; z-index: 8;" }
-                                                        div { style: "position: absolute; right: 0; width: {fade_out_pct}%; top: 0; bottom: 0; background: linear-gradient(270deg, rgba(0,0,0,0.8) 0%, rgba(0,0,0,0) 100%); pointer-events: none; z-index: 8;" }
-                                                        // Fade handles
-                                                        div {
-                                                            style: "position: absolute; left: calc({fade_in_pct}% - 4px); top: 0; width: 8px; height: 8px; cursor: ew-resize; z-index: 12;",
-                                                            onpointerdown: move |evt| {
-                                                                state.write().begin_clip_drag(&id_fl, crate::model::ClipDragMode::FadeIn, evt.client_coordinates().x);
-                                                                evt.stop_propagation();
-                                                            },
-                                                            div { style: "width: 0; height: 0; border-style: solid; border-width: 8px 8px 0 0; border-color: rgba(255,255,255,0.9) transparent transparent transparent;" }
-                                                        }
-                                                        div {
-                                                            style: "position: absolute; right: calc({fade_out_pct}% - 4px); top: 0; width: 8px; height: 8px; cursor: ew-resize; z-index: 12;",
-                                                            onpointerdown: move |evt| {
-                                                                state.write().begin_clip_drag(&id_fr, crate::model::ClipDragMode::FadeOut, evt.client_coordinates().x);
-                                                                evt.stop_propagation();
-                                                            },
-                                                            div { style: "width: 0; height: 0; border-style: solid; border-width: 0 8px 8px 0; border-color: transparent rgba(255,255,255,0.9) transparent transparent;" }
-                                                        }
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
 
                     // Playhead vertical line over the track area
                     div {
