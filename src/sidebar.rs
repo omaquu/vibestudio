@@ -33,6 +33,9 @@ fn LayerRow(
 
     // Drop target handling
     let id_drop = layer_id.clone();
+    let source_drop = id_drop.clone();
+    let zone_drop = id_drop.clone();
+    let hover_drop = id_drop.clone();
     let id_drag = layer_id.clone();
     let opacity_val = if visible { 1.0 } else { 0.35 };
     let font_weight = if is_selected { 600 } else { 400 };
@@ -183,27 +186,28 @@ fn LayerRow(
                             }
                         },
                         onpointerup: move |_| {
+                            let drop_id = source_drop.clone();
                             let mut s = state.write();
                             if let Some(source) = s.drag.source_id.take() {
-                                if source != id_drop {
+                                if source != drop_id {
                                     let zone = *drag_hover_zone.read();
                                     if zone == 1 {
-                                        s.reorder_layer(&source, &id_drop, true);
+                                        s.reorder_layer(&source, &drop_id, true);
                                     } else if zone == 3 {
-                                        s.reorder_layer(&source, &id_drop, false);
+                                        s.reorder_layer(&source, &drop_id, false);
                                     } else if zone == 2 {
-                                        s.reparent(&source, Some(id_drop.clone()));
+                                        s.reparent(&source, Some(drop_id));
                                     }
                                 }
                             }
                             *drag_hover_zone.write() = 0;
                         },
                         onpointerenter: move |_| {
-                            state.write().drag.hover_target_id = Some(id8.clone());
+                            state.write().drag.hover_target_id = Some(hover_drop.clone());
                         },
                         onpointerleave: move |_| {
                             let mut s = state.write();
-                            if s.drag.hover_target_id.as_deref() == Some(&id7) {
+                            if s.drag.hover_target_id.as_deref() == Some(&zone_drop) {
                                 s.drag.hover_target_id = None;
                             }
                             *drag_hover_zone.write() = 0;

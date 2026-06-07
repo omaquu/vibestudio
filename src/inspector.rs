@@ -99,8 +99,9 @@ pub fn Inspector() -> Element {
     // Check if selected is a composition
     let is_composition = selected.as_ref().map(|l| l.layer_type == LayerType::Composition).unwrap_or(false);
     let comp_children: Vec<Layer> = if is_composition {
-        let sel_id = selected.as_ref().unwrap().id.clone();
-        s.layers.iter().filter(|l| l.parent_id.as_deref() == Some(&sel_id)).cloned().collect()
+        if let Some(sel) = selected.as_ref() {
+            s.layers.iter().filter(|l| l.parent_id.as_deref() == Some(&sel.id)).cloned().collect()
+        } else { vec![] }
     } else {
         vec![]
     };
